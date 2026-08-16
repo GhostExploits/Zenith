@@ -24,8 +24,15 @@ It is designed to run on **Cloudflare Pages** (free tier is fine). You connect
 
 ## Step 2 — Create the Pages project
 
+> **Important: create a *Pages* project, not a *Workers* project.** Under
+> **Workers & Pages → Create** there are two tabs — pick **Pages**.
+> A **Workers** project runs `npx wrangler deploy`, which is the wrong
+> deployer for this repo (and fails on older Node versions). Pages serves
+> the `dist/` output directly and needs no deploy command. If you already
+> created a Workers project, delete it and create a Pages one.
+
 1. Log in to [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers &
-   Pages** (left menu) → **Create** → **Pages** → **Connect to Git**.
+   Pages** (left menu) → **Create** → tab **Pages** → **Connect to Git**.
 2. Pick your GitHub account and the repo.
 3. Build settings:
    - **Framework preset:** `Astro`
@@ -34,6 +41,8 @@ It is designed to run on **Cloudflare Pages** (free tier is fine). You connect
    - Leave everything else default.
 4. Click **Save and Deploy**. First build takes ~1–2 minutes. When it finishes
    you get a URL like `https://<project>.pages.dev`.
+
+Node version: the repo pins Node 22 (`.nvmrc`), which the toolchain needs.
 
 > The `wrangler.toml` file in the repo already sets the output dir and
 > compatibility flags, so no extra configuration is needed.
