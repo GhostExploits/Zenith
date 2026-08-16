@@ -1,0 +1,47 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Icon from '../components/icons/Icon.astro';
+
+export interface AppLink {
+  label: string;
+  href: string;
+  icon: string;
+}
+
+interface Props {
+  title: string;
+  description?: string;
+  user: { displayName: string; role: string };
+  nav: AppLink[];
+  noindex?: boolean;
+}
+
+const { title, description, user, nav, noindex } = Astro.props;
+const path = Astro.url.pathname;
+
+function isCurrent(href: string): boolean {
+  if (href === '/account') return path === '/account';
+  if (href === '/admin') return path === '/admin';
+  return path.startsWith(href);
+}
+---
+
+<BaseLayout title={title} description={description} noindex={noindex}>
+  <Header user={user} />
+  <div class="app-shell">
+    <aside class="app-sidebar">
+      <nav aria-label="Account">
+        {nav.map((l) => (
+          <a class="app-link" href={l.href} aria-current={isCurrent(l.href) ? 'page' : undefined}>
+            <Icon name={l.icon} size={18} />
+            {l.label}
+          </a>
+        ))}
+      </nav>
+    </aside>
+    <main class="app-main">
+      <slot />
+    </main>
+  </div>
+</BaseLayout>

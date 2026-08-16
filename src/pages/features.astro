@@ -1,0 +1,86 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Icon from '../components/icons/Icon.astro';
+import { getProducts } from '../lib/server/catalog';
+import { featureCategories } from '../content/features';
+
+const products = await getProducts();
+const allFeatures = products.flatMap((p) => p.features);
+
+const byCategory = featureCategories
+  .map((cat) => ({ category: cat, items: allFeatures.filter((f) => f.category === cat.id) }))
+  .filter((g) => g.items.length > 0);
+---
+
+<MarketingLayout
+  title="Features"
+  description="Explore Zenith's modular, configurable feature set."
+>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Features</span>
+      <h1 data-parallax data-depth="4">A modular feature set, under your control.</h1>
+      <p>
+        Every module is independently configurable, profile-aware, and organized by category.
+        Enable what you need, tune the rest, and keep your game clean.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="stack" style="gap: 44px;">
+        {byCategory.map(({ category, items }) => (
+          <div data-reveal>
+            <div class="cat-head">
+              <div class="cat-icon"><Icon name={category.icon} size={20} /></div>
+              <div>
+                <h2>{category.name}</h2>
+                <p>{category.description}</p>
+              </div>
+            </div>
+            <div class="grid grid--3">
+              {items.map((f) => (
+                <div class="card card--hover feature-card">
+                  <div class="feature-icon"><Icon name={f.icon} size={20} /></div>
+                  <h3>{f.name}</h3>
+                  <p>{f.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div class="card card--pad-lg center mt-3" data-reveal style="margin-top: 56px;">
+        <h2 style="font-size: 1.5rem;">Ready to try it?</h2>
+        <p class="muted" style="max-width: 520px; margin-inline: auto;">
+          The full feature set ships with Zenith V2. Choose a plan and get access to everything.
+        </p>
+        <a class="btn btn--primary btn--lg mt-2" href="/products">View products</a>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .cat-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .cat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--accent);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .cat-head h2 { font-size: 1.35rem; margin: 0 0 2px; }
+  .cat-head p { color: var(--text-dim); font-size: 0.92rem; margin: 0; }
+</style>

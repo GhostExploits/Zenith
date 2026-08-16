@@ -1,0 +1,194 @@
+---
+import AppLayout, { type AppLink } from '../../layouts/AppLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireUser } from '../../lib/server/guard';
+import { isGoogleConfigured } from '../../lib/server/google';
+
+const session = await requireUser(Astro);
+if (session instanceof Response) return session;
+const { user } = session;
+
+const nav: AppLink[] = [
+  { label: 'Overview', href: '/account', icon: 'home' },
+  { label: 'Products', href: '/account/products', icon: 'package' },
+  { label: 'Subscriptions', href: '/account/subscriptions', icon: 'credit-card' },
+  { label: 'Downloads', href: '/account/downloads', icon: 'download' },
+  { label: 'Settings', href: '/account/settings', icon: 'settings' },
+];
+
+const saved = Astro.url.searchParams.get('saved');
+const sent = Astro.url.searchParams.get('sent');
+const emailSent = Astro.url.searchParams.get('email_sent');
+const signedOut = Astro.url.searchParams.get('signedout');
+const error = Astro.url.searchParams.get('error');
+const errors: Record<string, string> = {
+  wrong_password: 'Your current password is incorrect.',
+  weak_password: 'New password must be at least 8 characters.',
+  password_mismatch: 'Those passwords don’t match.',
+  invalid_email: 'Enter a valid email address.',
+  same_email: 'That is already your current email address.',
+  email_taken: 'An account with that email already exists.',
+  email_failed: 'We couldn’t send the email right now. Please try again later.',
+  rate_limited: 'Too many requests. Please wait a few minutes.',
+};
+
+const hasPassword = user.passwordHash.length > 0;
+const googleConfigured = isGoogleConfigured();
+const hasGoogle = !!user.googleId;
+const hasPendingEmail = !!user.pendingEmail;
+---
+
+<AppLayout title="Settings" user={{ displayName: user.displayName, role: user.role }} nav={nav} noindex>
+  <div class="app-main-header">
+    <div>
+      <h1>Settings</h1>
+      <p>Profile, security, and session management.</p>
+    </div>
+  </div>
+
+  {saved && <div class="form-success mb-2"><Icon name="check" size={16} /> Settings saved.</div>}
+  {sent && <div class="form-success mb-2"><Icon name="check" size={16} /> Verification email sent — check your inbox.</div>}
+  {emailSent && <div class="form-success mb-2"><Icon name="check" size={16} /> We sent a verification link to your new address. Click it to switch your email.</div>}
+  {signedOut && <div class="form-success mb-2"><Icon name="check" size={16} /> Signed out of all other sessions.</div>}
+  {error && errors[error] && <div class="form-error mb-2"><Icon name="alert-triangle" size={16} /> {errors[error]}</div>}
+
+  <div class="grid grid--2" style="align-items: start;">
+    <div class="stack" style="gap: 24px;">
+      <div class="card card--pad">
+        <h2 class="sec-title">Profile</h2>
+        <form method="post" action="/api/account/settings">
+          <div class="field">
+            <label for="displayName">Display name</label>
+            <input class="input" id="displayName" name="displayName" type="text" maxlength="40" value={user.displayName} />
+          </div>
+          <button class="btn btn--secondary" type="submit">Save profile</button>
+        </form>
+      </div>
+
+      <div class="card card--pad">
+        <h2 class="sec-title">Email</h2>
+        <div class="row" style="justify-content: space-between; margin-bottom: 12px;">
+          <div>
+            <div class="muted small" style="margin-bottom: 4px;">Current address</div>
+            <div class="small">{user.email} {user.emailVerified && <span class="badge badge--green badge--dot">Verified</span>}</div>
+            {!user.emailVerified && <span class="badge badge--amber badge--dot">Not verified</span>}
+          </div>
+          {
+            !user.emailVerified && (
+              <form method="post" action="/api/account/resend-verification">
+                <button class="btn btn--sm btn--secondary" type="submit">Resend verification</button>
+              </form>
+            )
+          }
+        </div>
+        {
+          user.emailVerified && (
+            <>
+              <form method="post" action="/api/account/change-email">
+                <div class="field">
+                  <label for="newEmail">Change email address</label>
+                  <input class="input" id="newEmail" name="email" type="email" required autocomplete="email" placeholder="new@example.com" />
+                  <p class="hint">
+                    {hasPendingEmail ? `A confirmation link is pending for ${user.pendingEmail} — click it to finish the change.` : 'We’ll send a confirmation link to the new address before anything changes.'}
+                  </p>
+                </div>
+                <button class="btn btn--secondary" type="submit">Send confirmation</button>
+              </form>
+            </>
+          )
+        }
+        {
+          user.emailVerifiedAt && (
+            <p class="hint" style="margin: 10px 0 0;">Verified on {user.emailVerifiedAt.slice(0, 10)}</p>
+          )
+        }
+      </div>
+
+      <div class="card card--pad">
+        <h2 class="sec-title">Sign-in methods</h2>
+        <div class="method-row">
+          <div class="method-info">
+            <div class="small">Email &amp; password</div>
+            <div class="muted small">{hasPassword ? 'Password set' : 'No password set — add one so you can sign in without Google'}</div>
+          </div>
+          <span class={`badge ${hasPassword ? 'badge--green badge--dot' : 'badge--amber badge--dot'}`}>{hasPassword ? 'Active' : 'Not set'}</span>
+        </div>
+        <div class="method-row">
+          <div class="method-info">
+            <div class="small">Google</div>
+            <div class="muted small">{hasGoogle ? `Linked as ${user.email}` : 'Link your Google account for one-click sign-in'}</div>
+          </div>
+          {
+            hasGoogle
+              ? <span class="badge badge--green badge--dot">Linked</span>
+              : googleConfigured && <a class="btn btn--sm btn--secondary" href="/api/auth/google?next=/account/settings">Connect Google</a>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap: 24px;">
+      <div class="card card--pad">
+        <h2 class="sec-title">Security</h2>
+        <form method="post" action="/api/account/settings">
+          {
+            hasPassword && (
+              <div class="field">
+                <label for="currentPassword">Current password</label>
+                <input class="input" id="currentPassword" name="currentPassword" type="password" autocomplete="current-password" />
+              </div>
+            )
+          }
+          <div class="field">
+            <label for="newPassword">{hasPassword ? 'New password' : 'Set a password'}</label>
+            <input class="input" id="newPassword" name="newPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" />
+          </div>
+          <button class="btn btn--secondary" type="submit">{hasPassword ? 'Change password' : 'Set password'}</button>
+          <p class="hint" style="margin-top: 8px;">
+            {hasPassword ? 'Changing your password signs out every other device.' : 'Add a password to this account so you can sign in without Google.'}
+          </p>
+        </form>
+      </div>
+
+      <div class="card card--pad">
+        <h2 class="sec-title">Account</h2>
+        <div class="row" style="justify-content: space-between; margin-bottom: 12px;">
+          <span class="muted small">Role</span>
+          <span class="badge badge--accent">{user.role}</span>
+        </div>
+        <div class="row" style="justify-content: space-between;">
+          <span class="muted small">Member since</span>
+          <span class="small">{user.createdAt.slice(0, 10)}</span>
+        </div>
+      </div>
+
+      <div class="card card--pad">
+        <h2 class="sec-title">Sessions</h2>
+        <form method="post" action="/api/account/security/signout-all">
+          <p class="muted small" style="margin-top: 0;">Sign out of every session except this one.</p>
+          <button class="btn btn--danger" type="submit">Sign out other sessions</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</AppLayout>
+
+<style>
+  .sec-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 16px;
+  }
+  .method-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .method-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .method-info .small { font-weight: 600; margin-bottom: 2px; }
+</style>

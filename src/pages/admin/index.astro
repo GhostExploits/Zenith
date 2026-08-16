@@ -1,0 +1,118 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireAdmin } from '../../lib/server/guard';
+import { formatRelative } from '../../lib/format';
+
+const session = await requireAdmin(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+
+const activeSubs = db.subscriptions.filter((s) => s.status === 'active' && new Date(s.currentPeriodEnd).getTime() > Date.now());
+const recentPurchases = db.purchases.slice(-5).reverse();
+const recentAudit = db.audit.slice(-8).reverse();
+
+const stats = [
+  { label: 'Total users', value: db.users.length, icon: 'users' },
+  { label: 'Active subscriptions', value: activeSubs.length, icon: 'credit-card' },
+  { label: 'Products', value: db.products.length, icon: 'package' },
+  { label: 'Published releases', value: db.releases.filter((r) => r.published).length, icon: 'download' },
+  { label: 'Support tickets', value: 0, icon: 'message' },
+  { label: 'Audit events', value: db.audit.length, icon: 'activity' },
+];
+---
+
+<AdminLayout title="Admin dashboard" user={user}>
+  <div class="app-main-header">
+    <div>
+      <h1>Admin dashboard</h1>
+      <p>Operations overview. All actions are server-authorized and audited.</p>
+    </div>
+    <span class="badge badge--accent">{user.role}</span>
+  </div>
+
+  <div class="stat-grid">
+    {stats.map((s) => (
+      <div class="card card--pad stat-card">
+        <div class="stat-label"><Icon name={s.icon} size={14} class="stat-icon" style="vertical-align: -2px; margin-right: 6px;" /> {s.label}</div>
+        <div class="stat-value">{s.value}</div>
+      </div>
+    ))}
+  </div>
+
+  <div class="grid grid--2" style="align-items: start;">
+    <div>
+      <h2 class="sec-title">Recent admin activity</h2>
+      {
+        recentAudit.length === 0 ? (
+          <div class="card card--pad muted">No admin actions recorded yet.</div>
+        ) : (
+          <div class="card">
+            <ul class="plain-list">
+              {recentAudit.map((a) => (
+                <li>
+                  <span class="badge badge--accent" style="text-transform: none; letter-spacing: 0;">{a.action}</span>
+                  <span class="muted small">{a.resource}</span>
+                  <time class="faint small">{formatRelative(a.createdAt)}</time>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      }
+    </div>
+
+    <div>
+      <h2 class="sec-title">Recent purchases</h2>
+      {
+        recentPurchases.length === 0 ? (
+          <div class="card card--pad muted">
+            No purchases yet — payments aren't connected. Purchases appear here from verified provider events.
+          </div>
+        ) : (
+          <div class="card">
+            <ul class="plain-list">
+              {recentPurchases.map((p) => (
+                <li>
+                  <span class="muted small">{p.productId}</span>
+                  <span class="badge">{p.status}</span>
+                  <time class="faint small">{formatRelative(p.createdAt)}</time>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      }
+
+      <div class="alert alert--info mt-2">
+        <Icon name="shield-check" size={18} />
+        <span>Admin access is enforced server-side. Suspended users are signed out immediately; audit log tracks every change.</span>
+      </div>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .sec-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .plain-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
+  }
+  .plain-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .plain-list li:last-child { border-bottom: none; }
+  .plain-list time { margin-left: auto; }
+</style>

@@ -1,0 +1,114 @@
+---
+import MarketingLayout from '../../layouts/MarketingLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { getRelease, getProductById } from '../../lib/server/catalog';
+import { formatDate, formatBytes } from '../../lib/format';
+
+const { id } = Astro.params;
+const release = await getRelease(id ?? '');
+if (!release) return Astro.redirect('/changelog');
+
+const product = await getProductById(release.productId);
+const isFuture = release.scheduledFor && new Date(release.scheduledFor).getTime() > Date.now();
+---
+
+<MarketingLayout title={`${release.version} — ${release.title}`} description={release.summary}>
+  <section class="page-hero">
+    <div class="container container--narrow">
+      <div class="crumbs">
+        <a href="/">Home</a>
+        <Icon name="chevron-right" size={14} />
+        <a href="/changelog">Changelog</a>
+        <Icon name="chevron-right" size={14} />
+        <span>{release.version}</span>
+      </div>
+      <div class="row" style="gap: 10px; margin-bottom: 14px; flex-wrap: wrap;">
+        <span class="badge badge--accent">{release.channel}</span>
+        {release.featured && <span class="badge badge--accent">Featured</span>}
+        {product && <a class="badge" href={`/products/${product.slug}`}>{product.name}</a>}
+        {isFuture && <span class="badge badge--blue"><Icon name="clock" size={12} /> Scheduled</span>}
+      </div>
+      <h1 data-parallax data-depth="4">{release.version} <span class="faint" style="font-weight: 400;">· {release.title}</span></h1>
+      <p>{release.summary}</p>
+      <div class="row" style="gap: 8px; flex-wrap: wrap; margin-top: 16px;">
+        {release.minecraftVersions.map((v) => <span class="badge">MC {v}</span>)}
+        {release.platforms.map((p) => <span class="badge">{p}</span>)}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      {
+        isFuture ? (
+          <div class="alert alert--info">
+            <Icon name="clock" size={18} />
+            This release is scheduled and not available yet. Check back on {formatDate(release.scheduledFor!)}.
+          </div>
+        ) : (
+          <>
+            <div class="stack" style="gap: 24px;">
+              {release.sections.map((s) => (
+                <div class="card card--pad">
+                  <h2 class="section-title">{s.title}</h2>
+                  <ul class="notes">
+                    {s.items.map((item) => (
+                      <li>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div class="card card--pad mt-3">
+              <div class="row row--between" style="flex-wrap: wrap; gap: 12px;">
+                <div>
+                  <div class="faint small" style="text-transform: uppercase; letter-spacing: 0.1em;">Download</div>
+                  <div class="row" style="gap: 8px; margin-top: 6px; flex-wrap: wrap;">
+                    {release.asset && (
+                      <>
+                        <span class="badge">{release.asset.filename}</span>
+                        <span class="badge">{formatBytes(release.asset.sizeBytes)}</span>
+                      </>
+                    )}
+                    {release.requiresEntitlement && (
+                      <span class="badge badge--accent"><Icon name="lock" size={12} /> Requires entitlement</span>
+                    )}
+                  </div>
+                </div>
+                <a class="btn btn--primary" href={`/api/downloads/${release.id}`}>
+                  <Icon name="download" size={17} /> Download release
+                </a>
+              </div>
+              <p class="faint small" style="margin: 14px 0 0;">
+                Protected downloads require a signed-in account with an active entitlement for {product?.name ?? 'the product'}.
+              </p>
+            </div>
+          </>
+        )
+      }
+
+      <div class="center mt-3">
+        <a class="btn btn--ghost" href="/changelog"><Icon name="arrow-left" size={16} /> All releases</a>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .section-title {
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .notes {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    display: grid;
+    gap: 8px;
+  }
+</style>

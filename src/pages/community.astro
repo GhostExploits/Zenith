@@ -1,0 +1,101 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Icon from '../components/icons/Icon.astro';
+import { site } from '../config/site';
+import { getPublishedAnnouncements } from '../lib/server/catalog';
+import { formatDate } from '../lib/format';
+
+const announcements = (await getPublishedAnnouncements()).slice(0, 4);
+const socials = [
+  { name: 'discord', label: 'Discord', desc: 'Beta access, announcements, and community support.', href: site.links.discord, filled: true },
+  { name: 'twitter', label: 'X / Twitter', desc: 'Product updates and development notes.', href: site.links.twitter, filled: true },
+  { name: 'youtube', label: 'YouTube', desc: 'Showcases and configuration guides.', href: site.links.youtube, filled: true },
+  { name: 'github', label: 'GitHub', desc: 'Public tooling and issue tracking.', href: site.links.github, filled: true },
+];
+---
+
+<MarketingLayout title="Community" description="Join the Zenith community.">
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Community</span>
+      <h1 data-parallax data-depth="4">Join the community.</h1>
+      <p>Beta access, announcements, configuration help, and a direct line to the people building Zenith.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="card card--pad-lg discord-hero" data-reveal>
+        <div>
+          <span class="eyebrow">Discord</span>
+          <h2>The center of the Zenith community.</h2>
+          <p>
+            Get beta access, follow development, share configs, and get help from staff and
+            experienced members.
+          </p>
+          <a class="btn btn--primary btn--lg mt-2" href={site.links.discord} target="_blank" rel="noreferrer">
+            <Icon name="discord" size={20} filled /> Join the Discord
+          </a>
+          <p class="faint small mt-2">Discord link placeholder — replace in src/config/site.ts or Admin → Site Content.</p>
+        </div>
+        <div class="discord-art" aria-hidden="true">
+          <Icon name="discord" size={120} filled />
+        </div>
+      </div>
+
+      <div class="grid grid--4 mt-3" style="margin-top: 32px;">
+        {socials.map((s) => (
+          <a class="card card--hover card--pad social-card" href={s.href} target="_blank" rel="noreferrer">
+            <div class="social-icon"><Icon name={s.name} size={22} filled={s.filled} /></div>
+            <h3>{s.label}</h3>
+            <p>{s.desc}</p>
+          </a>
+        ))}
+      </div>
+
+      <div class="mt-3" style="margin-top: 48px;" data-reveal>
+        <h2 style="font-size: 1.4rem;">Announcements</h2>
+        <div class="stack" style="gap: 12px;">
+          {announcements.map((a) => (
+            <div class="card card--pad">
+              <div class="row row--between" style="flex-wrap: wrap; gap: 8px;">
+                <h3 style="font-size: 1.05rem; margin: 0;">{a.title}</h3>
+                <span class="faint small">{formatDate(a.date)}</span>
+              </div>
+              <p class="muted small" style="margin: 8px 0 0;">{a.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .discord-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    flex-wrap: wrap;
+    background:
+      radial-gradient(55% 120% at 100% 0%, rgba(255, 255, 255, 0.05), transparent 60%),
+      var(--bg-raised);
+  }
+  .discord-hero h2 { font-size: 1.8rem; margin: 0 0 8px; }
+  .discord-hero p { color: var(--text-dim); margin: 0; max-width: 480px; }
+  .discord-art { color: rgba(255, 255, 255, 0.05); }
+  .social-card { display: grid; gap: 10px; }
+  .social-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--accent);
+    display: grid;
+    place-items: center;
+  }
+  .social-card h3 { font-size: 1rem; margin: 0; }
+  .social-card p { color: var(--text-dim); font-size: 0.85rem; margin: 0; }
+</style>

@@ -1,0 +1,122 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Icon from '../components/icons/Icon.astro';
+import { getProducts, getPublishedReleases } from '../lib/server/catalog';
+import { formatDate } from '../lib/format';
+
+const products = await getProducts();
+const releases = await getPublishedReleases();
+const filter = Astro.url.searchParams.get('product');
+const filtered = filter ? releases.filter((r) => r.productId === filter) : releases;
+---
+
+<MarketingLayout title="Changelog" description="Release notes for every Zenith update.">
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Changelog</span>
+      <h1 data-parallax data-depth="4">Release notes</h1>
+      <p>Every release, documented. Filter by product and read the details.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="filter-bar card card--pad">
+        <div class="row" style="flex-wrap: wrap;">
+          <span class="faint small" style="text-transform: uppercase; letter-spacing: 0.1em;">Product</span>
+          <div class="chip-row">
+            <a class={`chip ${!filter ? 'chip--on' : ''}`} href="/changelog">All</a>
+            {products.map((p) => (
+              <a class={`chip ${filter === p.id ? 'chip--on' : ''}`} href={`/changelog?product=${p.id}`}>
+                {p.name}
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {
+        filtered.length === 0 ? (
+          <div class="empty-state mt-3">
+            <div class="empty-icon"><Icon name="file" size={36} /></div>
+            <h3>No releases yet</h3>
+            <p>Releases will appear here as they're published.</p>
+          </div>
+        ) : (
+          <div class="stack mt-3" style="gap: 12px;">
+            {filtered.map((r) => (
+              <a class="card card--hover release-row" href={`/changelog/${r.id}`}>
+                <div class="rr-meta">
+                  <span class="release-version">{r.version}</span>
+                  <time class="faint small">{formatDate(r.date)}</time>
+                </div>
+                <div class="rr-body">
+                  <div class="row" style="gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+                    {r.featured && <span class="badge badge--accent">Featured</span>}
+                    <span class="badge">{r.channel}</span>
+                    {r.requiresEntitlement && <span class="badge"><Icon name="lock" size={12} /> Protected</span>}
+                  </div>
+                  <h3>{r.title}</h3>
+                  <p>{r.summary}</p>
+                  <div class="row" style="gap: 8px; flex-wrap: wrap;">
+                    {r.minecraftVersions.map((v) => <span class="badge">MC {v}</span>)}
+                  </div>
+                </div>
+                <Icon name="arrow-right" size={18} class="rr-arrow" />
+              </a>
+            ))}
+          </div>
+        )
+      }
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .filter-bar { padding: 12px 16px; }
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .chip:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.3); }
+  .chip--on {
+    background: var(--accent-soft);
+    border-color: rgba(255, 255, 255, 0.38);
+    color: var(--accent-strong);
+  }
+  .release-version {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 0.92rem;
+  }
+  .release-row {
+    display: grid;
+    grid-template-columns: 170px 1fr auto;
+    gap: 20px;
+    align-items: center;
+    padding: 18px 20px;
+  }
+  .rr-meta {
+    display: grid;
+    gap: 4px;
+    align-self: start;
+    padding-top: 4px;
+  }
+  .rr-meta time { font-family: var(--font-mono); }
+  .rr-body h3 { font-size: 1.12rem; margin: 0 0 4px; }
+  .rr-body p { color: var(--text-dim); font-size: 0.9rem; margin: 0 0 10px; }
+  .rr-arrow { color: var(--text-faint); transition: transform var(--dur) var(--ease), color var(--dur) var(--ease); }
+  .release-row:hover .rr-arrow { color: var(--accent); transform: translateX(3px); }
+  @media (max-width: 720px) {
+    .release-row { grid-template-columns: 1fr; gap: 8px 16px; }
+    .rr-meta { display: flex; align-items: baseline; gap: 12px; padding-top: 0; }
+    .rr-arrow { display: none; }
+  }
+</style>

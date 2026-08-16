@@ -1,0 +1,69 @@
+---
+import MarketingLayout from '../../layouts/MarketingLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { getSessionUser } from '../../lib/server/auth';
+import { getStore } from '../../lib/server/store';
+
+const store = await getStore();
+const user = await getSessionUser(store, Astro.request).catch(() => null);
+
+const email = Astro.url.searchParams.get('email') ?? (user?.email ?? '');
+const failed = Astro.url.searchParams.get('email_failed') === '1';
+---
+
+<MarketingLayout title="Check your email" description="Verify your email to activate your Zenith account." noindex>
+  <section class="auth-wrap">
+    <div class="auth-card card card--pad-lg center">
+      <div class={`check-badge${failed ? ' check-badge--error' : ''}`}>
+        <Icon name={failed ? 'alert-triangle' : 'mail'} size={28} />
+      </div>
+      <h1>{failed ? 'We couldn’t send the email' : 'Check your inbox'}</h1>
+      <p class="muted">
+        {
+          failed
+            ? 'The verification email couldn’t be sent right now. Your account was created — sign in and use “Resend verification” from Settings to try again.'
+            : `We sent a verification link to <strong>${email}</strong>. Click it to activate your account — the link expires in 24 hours.`
+        }
+      </p>
+      {
+        user && (
+          <a class="btn btn--primary btn--lg mt-2" href="/account">
+            Continue to your account
+          </a>
+        )
+      }
+      {
+        !user && (
+          <a class="btn btn--primary btn--lg mt-2" href="/auth/signin">
+            Go to sign in
+          </a>
+        )
+      }
+      <p class="muted small mt-2" style="margin-bottom: 0;">
+        Didn’t get it? Check your spam folder, or
+        <a class="link" href="/account/settings">resend the email</a>.
+      </p>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .auth-wrap { display: grid; place-items: center; padding: clamp(48px, 10vw, 96px) 20px; }
+  .auth-card { width: 100%; max-width: 440px; }
+  .check-badge {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--blue-soft);
+    border: 1px solid rgba(91, 124, 250, 0.4);
+    color: var(--blue);
+  }
+  .check-badge--error {
+    background: var(--red-soft);
+    border-color: rgba(240, 122, 122, 0.4);
+    color: var(--red);
+  }
+</style>

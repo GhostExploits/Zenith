@@ -1,0 +1,116 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Icon from '../components/icons/Icon.astro';
+import { site } from '../config/site';
+
+const categories = [
+  {
+    icon: 'download',
+    title: 'Download issues',
+    desc: 'Releases, protected downloads, launcher setup, and JAR installation.',
+    href: '/faq',
+  },
+  {
+    icon: 'credit-card',
+    title: 'Purchases & billing',
+    desc: 'Plans, payments, refunds, and invoices.',
+    href: '/faq',
+  },
+  {
+    icon: 'user',
+    title: 'Account issues',
+    desc: 'Signing in, password resets, email verification, and account security.',
+    href: '/faq',
+  },
+  {
+    icon: 'package',
+    title: 'Product help',
+    desc: 'Module configuration, profiles, and product-specific questions.',
+    href: '/faq',
+  },
+  {
+    icon: 'message',
+    title: 'Community support',
+    desc: 'Fast help from the community and staff on Discord.',
+    href: '/community',
+  },
+  {
+    icon: 'file',
+    title: 'Documentation',
+    desc: 'Installation guides and setup references.',
+    href: '/faq',
+  },
+];
+---
+
+<MarketingLayout title="Support" description="Get help with Zenith products and your account.">
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Support</span>
+      <h1 data-parallax data-depth="4">How can we help?</h1>
+      <p>Browse the help center, check the FAQ, or reach out directly.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="grid grid--3">
+        {categories.map((c) => (
+          <a class="card card--hover card--pad support-card" href={c.href}>
+            <div class="feature-icon"><Icon name={c.icon} size={20} /></div>
+            <h3>{c.title}</h3>
+            <p>{c.desc}</p>
+            <span class="link small">Open <Icon name="arrow-right" size={14} /></span>
+          </a>
+        ))}
+      </div>
+
+      <div class="card card--pad-lg mt-3" id="contact" data-reveal style="margin-top: 56px;">
+        <div class="row" style="gap: 14px; margin-bottom: 6px;">
+          <div class="feature-icon"><Icon name="mail" size={20} /></div>
+          <h2 style="font-size: 1.4rem; margin: 0;">Contact support</h2>
+        </div>
+        <p class="muted" style="max-width: 560px;">
+          For account, billing, or download problems, send a message here. A ticket will be created —
+          in this foundation build the message is logged and a reply comes by email once the ticket
+          backend is connected.
+        </p>
+        {Astro.url.searchParams.get('sent') === '1' && (
+          <div class="form-success mt-2" style="max-width: 560px;"><Icon name="check" size={16} /> Message received. We'll get back to you at the email you provided.</div>
+        )}
+        <form method="post" action="/api/support/ticket" class="mt-2" style="max-width: 560px;">
+          <div class="field">
+            <label for="s-email">Your email</label>
+            <input class="input" id="s-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+          </div>
+          <div class="field">
+            <label for="s-topic">Topic</label>
+            <select class="select" id="s-topic" name="topic">
+              <option value="account">Account</option>
+              <option value="billing">Billing & purchases</option>
+              <option value="download">Downloads</option>
+              <option value="product">Product / client</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="s-message">Message</label>
+            <textarea class="textarea" id="s-message" name="message" required placeholder="Describe the issue — include version numbers and what you've tried."></textarea>
+          </div>
+          <button class="btn btn--primary" type="submit">Send message</button>
+        </form>
+      </div>
+
+      <div class="center mt-3" style="margin-top: 40px;">
+        <p class="muted">Prefer the community? <a class="link" href={site.links.discord}>Join the Discord</a> — placeholders to be replaced.</p>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .support-card { display: grid; gap: 12px; }
+  .support-card h3 { font-size: 1.05rem; margin: 0; }
+  .support-card p { color: var(--text-dim); font-size: 0.9rem; margin: 0; flex: 1; }
+  .support-card .link { display: inline-flex; align-items: center; gap: 6px; }
+</style>

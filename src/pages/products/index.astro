@@ -1,0 +1,78 @@
+---
+import MarketingLayout from '../../layouts/MarketingLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { getProducts } from '../../lib/server/catalog';
+
+const products = await getProducts();
+const visible = products.filter((p) => p.availability !== 'unavailable');
+---
+
+<MarketingLayout
+  title="Products"
+  description="Explore Zenith's products."
+>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Products</span>
+      <h1 data-parallax data-depth="4">Choose your Zenith.</h1>
+      <p>Every product is entitlements-based — one account, managed from your dashboard.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      {
+        visible.length === 0 ? (
+          <div class="empty-state">
+            <div class="empty-icon"><Icon name="package" size={36} /></div>
+            <h3>No products yet</h3>
+            <p>Products will appear here as soon as they're published.</p>
+          </div>
+        ) : (
+          <div class="stack" style="gap: 24px;">
+            {visible.map((p) => (
+              <article class="card card--hover card--pad-lg product-feature">
+                <div class="pf-top">
+                  <div>
+                    <div class="row" style="gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                      <span class="badge badge--accent badge--dot">
+                        {p.availability === 'beta' ? 'Beta' : p.availability === 'coming-soon' ? 'Coming soon' : 'Available'}
+                      </span>
+                      {p.status !== 'released' && <span class="badge">{p.status}</span>}
+                      <span class="badge">v{p.currentVersion}</span>
+                      <span class="badge">{p.channel}</span>
+                    </div>
+                    <h2>{p.name}</h2>
+                    <p class="pf-tagline">{p.tagline}</p>
+                  </div>
+                  <a class="btn btn--primary" href={`/products/${p.slug}`}>View product</a>
+                </div>
+                <p class="pf-desc">{p.longDescription}</p>
+                <div class="pf-points">
+                  <div class="pf-point"><Icon name="gauge" size={18} /><span>Performance-focused</span></div>
+                  <div class="pf-point"><Icon name="sliders" size={18} /><span>Deep customization</span></div>
+                  <div class="pf-point"><Icon name="cloud" size={18} /><span>Profile sync</span></div>
+                </div>
+                <div class="pf-mc">
+                  {p.minecraftVersions.map((v) => <span class="badge">MC {v}</span>)}
+                </div>
+              </article>
+            ))}
+          </div>
+        )
+      }
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .product-feature { display: grid; gap: 18px; }
+  .pf-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  .pf-top h2 { font-size: 1.55rem; margin: 0; }
+  .pf-tagline { font-family: var(--font-mono); font-size: 0.84rem; color: var(--accent-dim); margin: 5px 0 0; }
+  .pf-desc { color: var(--text-dim); margin: 0; max-width: 720px; }
+  .pf-points { display: flex; gap: 24px; flex-wrap: wrap; }
+  .pf-point { display: flex; align-items: center; gap: 9px; color: var(--text-dim); font-size: 0.88rem; font-weight: 500; }
+  .pf-point svg { color: var(--accent-dim); }
+  .pf-mc { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>

@@ -1,0 +1,284 @@
+---
+import MarketingLayout from '../../layouts/MarketingLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { getProduct, getPlansForProduct, getReleasesForProduct, getPublishedFaqs } from '../../lib/server/catalog';
+import { mediaForProduct } from '../../content/media';
+import { formatPrice, intervalLabel, formatDate } from '../../lib/format';
+
+const { slug } = Astro.params;
+const product = await getProduct(slug ?? '');
+if (!product) return Astro.redirect('/products');
+
+const plans = await getPlansForProduct(product.id);
+const releases = await getReleasesForProduct(product.id);
+const faqs = await getPublishedFaqs();
+const media = mediaForProduct(product.id);
+const productFaqs = faqs.filter((f) => product.faqIds.includes(f.id) || f.category === 'Getting Started' || f.category === 'Purchases & Billing');
+
+const grouped = new Map<string, typeof product.features>();
+for (const f of product.features) {
+  if (!grouped.has(f.category)) grouped.set(f.category, []);
+  grouped.get(f.category)!.push(f);
+}
+
+const availabilityLabel =
+  product.availability === 'beta' ? 'Beta' : product.availability === 'coming-soon' ? 'Coming soon' : 'Available';
+---
+
+<MarketingLayout title={product.name} description={product.shortDescription}>
+  <section class="page-hero">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">Home</a>
+        <Icon name="chevron-right" size={14} />
+        <a href="/products">Products</a>
+        <Icon name="chevron-right" size={14} />
+        <span>{product.name}</span>
+      </div>
+      <div class="row" style="gap: 10px; margin-bottom: 14px; flex-wrap: wrap;">
+        <span class="badge badge--accent badge--dot">{availabilityLabel}</span>
+        <span class="badge">v{product.currentVersion}</span>
+        <span class="badge">{product.channel} channel</span>
+      </div>
+      <h1 data-parallax data-depth="4">{product.name}</h1>
+      <p>{product.tagline}</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="grid grid--2" style="grid-template-columns: 1.4fr 1fr; align-items: start; gap: 32px;">
+        <div class="stack" style="gap: 28px;">
+          <div>
+            <h2 style="font-size: 1.4rem;">Overview</h2>
+            <p class="muted">{product.longDescription}</p>
+          </div>
+
+          <div>
+            <h2 style="font-size: 1.4rem;">Features</h2>
+            <div class="stack" style="gap: 22px;">
+              {[...grouped.entries()].map(([category, features]) => (
+                <div>
+                  <h3 class="fcat">{category}</h3>
+                  <div class="grid grid--2">
+                    {features.map((f) => (
+                      <div class="card card--hover feature-card">
+                        <div class="feature-icon"><Icon name={f.icon} size={19} /></div>
+                        <h3>{f.name}</h3>
+                        <p>{f.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 style="font-size: 1.4rem;">Gallery</h2>
+            <div class="media-grid" data-gallery>
+              {media.map((m, i) => (
+                <button
+                  type="button"
+                  class="media-tile"
+                  data-gallery-open={i}
+                  aria-label={`Open ${m.caption ?? 'screenshot'}`}
+                >
+                  <img src={m.src} alt={m.alt} loading={i === 0 ? 'eager' : 'lazy'} width={640} height={360} />
+                  <span class="media-cap">{m.caption}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 style="font-size: 1.4rem;">System & compatibility</h2>
+            <div class="table-wrap">
+              <table class="table">
+                <tbody>
+                  {product.specs.map((s) => (
+                    <tr>
+                      <td style="color: var(--text-faint); width: 200px;">{s.label}</td>
+                      <td>{s.value}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td style="color: var(--text-faint);">Supported Minecraft versions</td>
+                    <td>{product.minecraftVersions.join(', ')}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: var(--text-faint);">Platforms</td>
+                    <td>{product.platforms.join(', ')}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <h2 style="font-size: 1.4rem;">Latest release</h2>
+            {
+              releases.length > 0 ? (
+                <div class="stack">
+                  {releases.slice(0, 2).map((r) => (
+                    <a class="card card--hover card--pad" href={`/changelog/${r.id}`}>
+                      <div class="row row--between">
+                        <span class="release-version">{r.version}</span>
+                        <span class="faint small">{formatDate(r.date)}</span>
+                      </div>
+                      <p class="muted small" style="margin: 8px 0 0;">{r.summary}</p>
+                    </a>
+                  ))}
+                  <a class="btn btn--ghost" href={`/changelog?product=${product.slug}`} style="align-self: flex-start;">
+                    Full changelog <Icon name="arrow-right" size={16} />
+                  </a>
+                </div>
+              ) : (
+                <p class="muted">No public releases yet.</p>
+              )
+            }
+          </div>
+        </div>
+
+        <!-- Sticky purchase panel -->
+        <aside class="purchase-panel card card--pad-lg" style="position: sticky; top: calc(var(--header-h) + 24px);">
+          <h3 style="font-size: 1.2rem;">Get {product.name}</h3>
+          <p class="muted small" style="margin-bottom: 18px;">
+            Choose a plan. Entitlements are tied to your account, not a machine.
+          </p>
+          <div class="stack" style="gap: 12px;">
+            {plans.map((plan) => (
+              <a class={`plan-row ${plan.highlighted ? 'plan-row--hl' : ''}`} href={`/checkout/${plan.id}`}>
+                <div>
+                  <div class="plan-row-name">{plan.name} {plan.highlighted && <span class="badge badge--accent">Best value</span>}</div>
+                  <div class="faint small">{plan.description}</div>
+                </div>
+                <div class="plan-row-price">
+                  {formatPrice(plan.priceCents, plan.currency)}
+                  <span class="faint small">{intervalLabel(plan.interval)}</span>
+                </div>
+              </a>
+            ))}
+          </div>
+          <p class="faint small" style="margin-top: 14px;">
+            Payments aren't connected yet — checkout shows an order summary until a provider is integrated.
+          </p>
+          <a class="btn btn--secondary btn--block mt-2" href={`/changelog?product=${product.slug}`}>View changelog</a>
+        </aside>
+      </div>
+
+      <!-- FAQ -->
+      <div class="mt-3">
+        <h2 style="font-size: 1.4rem;">FAQ</h2>
+        <div class="stack" style="max-width: 760px;">
+          {productFaqs.slice(0, 6).map((f) => (
+            <details class="faq-mini card card--pad">
+              <summary>{f.question}</summary>
+              <p>{f.answer}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lightbox -->
+  <div class="lightbox" data-lightbox aria-hidden="true">
+    <button class="lb-close" type="button" data-lightbox-close aria-label="Close"><Icon name="close" size={20} /></button>
+    <figure>
+      <img src="" alt="" data-lightbox-img />
+      <figcaption data-lightbox-cap></figcaption>
+    </figure>
+  </div>
+</MarketingLayout>
+
+<style>
+  .fcat {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .media-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 720px) { .media-grid { grid-template-columns: 1fr; } }
+  .media-tile {
+    position: relative;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-inset);
+    cursor: zoom-in;
+    transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .media-tile:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .media-tile img { width: 100%; height: auto; }
+  .media-cap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 18px 12px 8px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    font-size: 0.82rem;
+    color: var(--text);
+    text-align: left;
+  }
+  .plan-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .plan-row:hover { border-color: var(--border-strong); background: rgba(255, 255, 255, 0.03); }
+  .plan-row--hl { border-color: rgba(233, 182, 74, 0.4); background: var(--accent-soft); }
+  .plan-row-name { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .plan-row-price { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; white-space: nowrap; }
+  .plan-row-price span { font-family: var(--font-body); font-weight: 500; margin-left: 4px; }
+  @media (max-width: 980px) {
+    .grid--2[style*='1.4fr'] { grid-template-columns: 1fr !important; }
+    .purchase-panel { position: static !important; }
+  }
+  .faq-mini { padding: 18px 22px; }
+  .faq-mini summary { cursor: pointer; font-weight: 600; list-style: none; font-size: 0.96rem; }
+  .faq-mini summary::after { content: '+'; float: right; color: var(--accent); }
+  .faq-mini[open] summary::after { content: '–'; }
+  .faq-mini p { color: var(--text-dim); font-size: 0.92rem; margin: 12px 0 0; }
+</style>
+
+<script>
+  // Lightbox for the product gallery.
+  const lightbox = document.querySelector<HTMLElement>('[data-lightbox]')!;
+  const img = lightbox.querySelector<HTMLImageElement>('[data-lightbox-img]')!;
+  const cap = lightbox.querySelector<HTMLElement>('[data-lightbox-cap]')!;
+  const closeBtn = lightbox.querySelector<HTMLButtonElement>('[data-lightbox-close]')!;
+  const tiles = [...document.querySelectorAll<HTMLButtonElement>('[data-gallery-open]')];
+
+  function open(i: number) {
+    const tile = tiles[i];
+    if (!tile) return;
+    img.src = tile.querySelector('img')?.src ?? '';
+    cap.textContent = tile.querySelector('.media-cap')?.textContent ?? '';
+    lightbox.setAttribute('data-open', 'true');
+    lightbox.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function close() {
+    lightbox.setAttribute('data-open', 'false');
+    lightbox.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+  tiles.forEach((t, i) => t.addEventListener('click', () => open(i)));
+  closeBtn.addEventListener('click', close);
+  lightbox.addEventListener('click', (e) => { if (e.target === lightbox) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+</script>

@@ -1,0 +1,96 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Icon from '../components/icons/Icon.astro';
+import { mediaItems } from '../content/media';
+---
+
+<MarketingLayout title="Media" description="Screenshots and media for Zenith.">
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Media</span>
+      <h1 data-parallax data-depth="4">See Zenith in action</h1>
+      <p>
+        Screenshots and previews. Current images are clearly-marked placeholders
+        until real captures are published.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="gallery" data-gallery>
+        {mediaItems.map((m, i) => (
+          <button type="button" class="gallery-tile" data-gallery-open={i} aria-label={`Open ${m.caption ?? m.alt}`}>
+            <img src={m.src} alt={m.alt} loading={i < 2 ? 'eager' : 'lazy'} width={640} height={360} />
+            {m.caption && <span class="gallery-cap">{m.caption}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <div class="lightbox" data-lightbox aria-hidden="true">
+    <button class="lb-close" type="button" data-lightbox-close aria-label="Close"><Icon name="close" size={20} /></button>
+    <figure>
+      <img src="" alt="" data-lightbox-img />
+      <figcaption data-lightbox-cap></figcaption>
+    </figure>
+  </div>
+</MarketingLayout>
+
+<style>
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .gallery-tile {
+    position: relative;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-inset);
+    cursor: zoom-in;
+    transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .gallery-tile:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .gallery-tile img { width: 100%; height: auto; }
+  .gallery-cap {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 22px 14px 10px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+    font-size: 0.84rem;
+    color: var(--text);
+    text-align: left;
+  }
+</style>
+
+<script>
+  const lightbox = document.querySelector<HTMLElement>('[data-lightbox]')!;
+  const img = lightbox.querySelector<HTMLImageElement>('[data-lightbox-img]')!;
+  const cap = lightbox.querySelector<HTMLElement>('[data-lightbox-cap]')!;
+  const closeBtn = lightbox.querySelector<HTMLButtonElement>('[data-lightbox-close]')!;
+  const tiles = [...document.querySelectorAll<HTMLButtonElement>('[data-gallery-open]')];
+
+  function open(i: number) {
+    const tile = tiles[i];
+    if (!tile) return;
+    img.src = tile.querySelector('img')?.src ?? '';
+    img.alt = tile.querySelector('img')?.alt ?? '';
+    cap.textContent = tile.querySelector('.gallery-cap')?.textContent ?? '';
+    lightbox.setAttribute('data-open', 'true');
+    lightbox.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function close() {
+    lightbox.setAttribute('data-open', 'false');
+    lightbox.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+  tiles.forEach((t, i) => t.addEventListener('click', () => open(i)));
+  closeBtn.addEventListener('click', close);
+  lightbox.addEventListener('click', (e) => { if (e.target === lightbox) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+</script>

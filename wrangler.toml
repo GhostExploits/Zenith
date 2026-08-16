@@ -1,0 +1,42 @@
+# Cloudflare Pages configuration.
+#
+# Read by both `wrangler pages dev` (local) and the Cloudflare Pages build
+# pipeline when the repo is connected to GitHub. Settings here (build output
+# dir, compatibility date/flags) are applied automatically — you do not need
+# to touch this file when deploying.
+
+name = "zenith"
+
+# Output of `npm run build` (Astro with the Cloudflare adapter). Pages serves
+# the static files in here and routes everything else to the generated worker.
+pages_build_output_dir = "dist"
+
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ---------------------------------------------------------------------------
+# Bindings
+# ---------------------------------------------------------------------------
+# No bindings are required today.
+#
+# Zenith does NOT use Astro's built-in session feature (auth sessions live in
+# the application database via src/lib/server/store.ts), so no KV namespace is
+# declared here.
+#
+# Future bindings — uncomment when the production backend is connected:
+#
+#   # Database (production store — see README → Production backend)
+#   [[d1_databases]]
+#   binding = "DB"
+#   database_name = "zenith"
+#   database_id = "replace-with-d1-database-id"
+#   migrations_dir = "migrations"
+#
+#   # Private release storage (protected downloads)
+#   [[r2_buckets]]
+#   binding = "STORAGE"
+#   bucket_name = "zenith-releases"
+
+# Environment variables and secrets are configured in the Cloudflare dashboard
+# (Pages project → Settings → Environment variables / Secrets), NOT here — this
+# file is committed to the repo and must never contain credentials.

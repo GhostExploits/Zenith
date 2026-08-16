@@ -1,0 +1,107 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Icon from '../components/icons/Icon.astro';
+import { getPublishedFaqs } from '../lib/server/catalog';
+
+const faqs = await getPublishedFaqs();
+const byCategory = new Map<string, typeof faqs>();
+for (const f of faqs) {
+  if (!byCategory.has(f.category)) byCategory.set(f.category, []);
+  byCategory.get(f.category)!.push(f);
+}
+---
+
+<MarketingLayout title="FAQ" description="Frequently asked questions about Zenith.">
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">FAQ</span>
+      <h1 data-parallax data-depth="4">Frequently asked questions</h1>
+      <p>Installation, purchases, subscriptions, downloads, and more.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      {
+        byCategory.size === 0 ? (
+          <div class="empty-state">
+            <div class="empty-icon"><Icon name="message" size={36} /></div>
+            <h3>No FAQs yet</h3>
+            <p>Questions will appear here as they're published.</p>
+          </div>
+        ) : (
+          <div class="stack" style="gap: 32px;">
+            {[...byCategory.entries()].map(([category, items]) => (
+              <div>
+                <h2 class="cat-title">{category}</h2>
+                <div class="stack" style="gap: 10px;">
+                  {items.map((f) => (
+                    <details class="faq-item" data-open="false">
+                      <summary class="faq-q">
+                        {f.question}
+                        <Icon name="chevron-down" size={18} class="chev" />
+                      </summary>
+                      <div class="faq-a">{f.answer}</div>
+                    </details>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      }
+
+      <div class="card card--pad center mt-3" style="margin-top: 48px;">
+        <h2 style="font-size: 1.3rem;">Still have questions?</h2>
+        <p class="muted" style="max-width: 460px; margin-inline: auto;">
+          The support center and community Discord are the fastest way to get an answer.
+        </p>
+        <a class="btn btn--secondary mt-2" href="/support">Visit Support</a>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .cat-title {
+    font-size: 1.1rem;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .cat-title::before {
+    content: '';
+    width: 16px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+</style>
+
+<script>
+  // FAQ accordions — allow only one open at a time per section, keyboard friendly.
+  document.querySelectorAll('.faq-item').forEach((item) => {
+    const summary = item.querySelector('.faq-q');
+    if (!summary) return;
+    summary.setAttribute('aria-expanded', 'false');
+    summary.addEventListener('click', (e) => {
+      e.preventDefault();
+      const isOpen = item.getAttribute('data-open') === 'true';
+      const group = item.parentElement;
+      group?.querySelectorAll('.faq-item').forEach((other) => {
+        other.setAttribute('data-open', 'false');
+        other.querySelector('.faq-q')?.setAttribute('aria-expanded', 'false');
+      });
+      item.setAttribute('data-open', String(!isOpen));
+      summary.setAttribute('aria-expanded', String(!isOpen));
+    });
+    summary.addEventListener('keydown', (e) => {
+      const event = e as KeyboardEvent;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        (event.currentTarget as HTMLElement).click();
+      }
+    });
+  });
+</script>

@@ -1,0 +1,33 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { getSessionUser } from '../lib/server/auth';
+import { getStore } from '../lib/server/store';
+
+interface Props {
+  title?: string;
+  description?: string;
+  noindex?: boolean;
+}
+
+const { title, description, noindex } = Astro.props;
+
+// Show the account menu instead of "Sign in" when the visitor has a session.
+// Prerendered pages (home, legal, 404) and production-without-backend fall
+// back to the anonymous header gracefully.
+let user: { displayName: string; role: string } | null = null;
+try {
+  const store = await getStore();
+  const session = await getSessionUser(store, Astro.request);
+  if (session) user = { displayName: session.displayName, role: session.role };
+} catch {
+  user = null;
+}
+---
+
+<BaseLayout title={title} description={description} noindex={noindex}>
+  <Header user={user} />
+  <slot />
+  <Footer />
+</BaseLayout>

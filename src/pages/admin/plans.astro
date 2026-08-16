@@ -1,0 +1,141 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireAdmin } from '../../lib/server/guard';
+import { formatPrice, intervalLabel } from '../../lib/format';
+
+const session = await requireAdmin(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+const plans = db.plans;
+const productName = (id: string) => db.products.find((p) => p.id === id)?.name ?? id;
+const plan = Astro.url.searchParams.get('id') ? db.plans.find((p) => p.id === Astro.url.searchParams.get('id')) : undefined;
+const isNew = !plan;
+const action = isNew ? 'create' : 'update';
+
+const f = (key: string, fallback: string | number = '') => {
+  const val = plan?.[key as keyof typeof plan];
+  return val === undefined || val === null ? String(fallback) : String(val);
+};
+const fArr = (key: string) => (plan?.[key as keyof typeof plan] as string[] | undefined) ?? [];
+---
+
+<AdminLayout title="Plans" user={user}>
+  <div class="app-main-header">
+    <div>
+      <h1>Plans</h1>
+      <p>Pricing plans per product. Prices are placeholders until finalized.</p>
+    </div>
+    <a class="btn btn--primary" href="/admin/plans?id=new"><Icon name="plus" size={16} /> New plan</a>
+  </div>
+
+  {
+    plans.length === 0 ? (
+      <div class="empty-state"><h3>No plans yet</h3></div>
+    ) : (
+      <div class="table-wrap mb-3">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Plan</th>
+              <th>Interval</th>
+              <th>Price</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {plans.map((p) => (
+              <tr>
+                <td>{productName(p.productId)}</td>
+                <td style="font-weight: 600;">{p.name} {p.highlighted && <span class="badge badge--accent">Rec.</span>}</td>
+                <td>{intervalLabel(p.interval)}</td>
+                <td>{formatPrice(p.priceCents, p.currency)}</td>
+                <td>{p.active ? <span class="badge badge--green badge--dot">Active</span> : <span class="badge">Inactive</span>}</td>
+                <td>
+                  <div class="row" style="gap: 6px; justify-content: flex-end;">
+                    <a class="btn btn--sm btn--secondary" href={`/admin/plans?id=${p.id}`}><Icon name="edit" size={14} /> Edit</a>
+                    <form method="post" action="/api/admin/plans" data-confirm="Delete this plan?">
+                      <input type="hidden" name="action" value="delete" />
+                      <input type="hidden" name="id" value={p.id} />
+                      <button class="btn btn--sm btn--danger" type="submit"><Icon name="trash" size={14} /></button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  <div class="card card--pad-lg" id="form">
+    <h2 class="sec-title">{isNew ? 'Create plan' : `Edit — ${plan?.name}`}</h2>
+    <form method="post" action="/api/admin/plans" style="max-width: 720px;">
+      <input type="hidden" name="action" value={action} />
+      {!isNew && <input type="hidden" name="id" value={plan!.id} />}
+      <div class="grid grid--2">
+        <div class="field">
+          <label for="productId">Product *</label>
+          <select class="select" id="productId" name="productId" required>
+            {db.products.map((p) => <option value={p.id} selected={f('productId') === p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="name">Plan name *</label>
+          <input class="input" id="name" name="name" required value={f('name')} placeholder="Monthly" />
+        </div>
+      </div>
+      <div class="grid grid--3">
+        <div class="field">
+          <label for="interval">Billing interval *</label>
+          <select class="select" id="interval" name="interval" required>
+            {['month', 'year', 'once'].map((i) => <option value={i} selected={f('interval') === i}>{i === 'once' ? 'One-time (lifetime)' : i}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="price">Price (minor units, e.g. 1295 = $12.95) *</label>
+          <input class="input" id="price" name="price" type="number" min="0" required value={f('priceCents')} />
+        </div>
+        <div class="field">
+          <label for="currency">Currency</label>
+          <input class="input" id="currency" name="currency" maxlength="3" value={f('currency', 'USD')} />
+        </div>
+      </div>
+      <div class="field">
+        <label for="description">Description</label>
+        <textarea class="textarea" id="description" name="description" style="min-height: 60px;">{f('description')}</textarea>
+      </div>
+      <div class="field">
+        <label for="features">Features (comma-separated)</label>
+        <textarea class="textarea" id="features" name="features">{fArr('features').join(', ')}</textarea>
+      </div>
+      <div class="row" style="gap: 22px; flex-wrap: wrap; margin-bottom: 18px;">
+        <label class="check"><input type="checkbox" name="active" value="true" checked={plan?.active !== false} /> Active</label>
+        <label class="check"><input type="checkbox" name="highlighted" value="true" checked={plan?.highlighted} /> Highlighted / recommended</label>
+      </div>
+      <button class="btn btn--primary" type="submit">{isNew ? 'Create plan' : 'Save changes'}</button>
+    </form>
+  </div>
+</AdminLayout>
+
+<style>
+  .sec-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 16px;
+  }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; color: var(--text-dim); cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLFormElement>('form[data-confirm]').forEach((form) => {
+    form.addEventListener('submit', (e) => { if (!window.confirm(form.dataset.confirm ?? '')) e.preventDefault(); });
+  });
+</script>

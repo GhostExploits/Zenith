@@ -1,0 +1,134 @@
+---
+import MarketingLayout from '../../layouts/MarketingLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { getPlan, getProductById } from '../../lib/server/catalog';
+import { getStore } from '../../lib/server/store';
+import { getSessionUser } from '../../lib/server/auth';
+import { hasEntitlement } from '../../lib/server/entitlements';
+import { formatPrice, intervalLabel } from '../../lib/format';
+
+const { planId } = Astro.params;
+const plan = await getPlan(planId ?? '');
+if (!plan) return Astro.redirect('/products');
+
+const product = await getProductById(plan.productId);
+if (!product || product.availability === 'unavailable') return Astro.redirect('/products');
+
+let user: Awaited<ReturnType<typeof getSessionUser>> = null;
+let alreadyOwned = false;
+try {
+  const store = await getStore();
+  user = await getSessionUser(store, Astro.request);
+  alreadyOwned = !!user && hasEntitlement(store.db(), user, product.id);
+} catch {
+  /* store unavailable — treat as guest */
+}
+---
+
+<MarketingLayout title={`Checkout — ${plan.name}`} description={`${plan.name} plan for ${product.name}.`} noindex>
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="crumbs">
+        <a href="/">Home</a>
+        <Icon name="chevron-right" size={14} />
+        <a href={`/products/${product.slug}`}>{product.name}</a>
+        <Icon name="chevron-right" size={14} />
+        <span>Checkout</span>
+      </div>
+
+      <h1 style="font-size: 1.8rem;">Checkout</h1>
+
+      <div class="card card--pad-lg mt-2">
+        <div class="row row--between" style="flex-wrap: wrap; gap: 12px;">
+          <div>
+            <div class="faint small" style="text-transform: uppercase; letter-spacing: 0.1em;">Product</div>
+            <div style="font-weight: 600; margin-top: 4px;">{product.name}</div>
+          </div>
+          <div>
+            <div class="faint small" style="text-transform: uppercase; letter-spacing: 0.1em;">Plan</div>
+            <div style="font-weight: 600; margin-top: 4px;">{plan.name}</div>
+          </div>
+          <div>
+            <div class="faint small" style="text-transform: uppercase; letter-spacing: 0.1em;">Billing</div>
+            <div style="font-weight: 600; margin-top: 4px;">{intervalLabel(plan.interval)}</div>
+          </div>
+          <div>
+            <div class="faint small" style="text-transform: uppercase; letter-spacing: 0.1em;">Total</div>
+            <div class="plan-price" style="margin-top: 4px;">
+              {formatPrice(plan.priceCents, plan.currency)}
+              {plan.interval !== 'once' && <span class="faint small">/{plan.interval === 'month' ? 'month' : 'year'}</span>}
+            </div>
+          </div>
+        </div>
+
+        <hr class="divider" />
+
+        <ul class="plan-check-list">
+          {plan.features.map((f) => <li><Icon name="check" size={16} /> {f}</li>)}
+        </ul>
+
+        <hr class="divider" />
+
+        {
+          alreadyOwned ? (
+            <div class="alert alert--green">
+              <Icon name="shield-check" size={18} />
+              You already hold an entitlement for {product.name}. Head to your dashboard to manage it.
+            </div>
+          ) : (
+            <div class="alert alert--accent">
+              <Icon name="info" size={18} />
+              Payment processing is not connected yet. This checkout is an order summary only — once a
+              payment provider is integrated, completing this order will grant your entitlement.
+            </div>
+          )
+        }
+
+        <div class="mt-2">
+          {
+            user ? (
+              <button class="btn btn--secondary btn--block btn--lg" type="button" disabled title="Payments are not configured yet.">
+                <Icon name="credit-card" size={18} /> Continue to payment — coming soon
+              </button>
+            ) : (
+              <a class="btn btn--primary btn--block btn--lg" href={`/auth/signin?next=/checkout/${plan.id}`}>
+                Sign in to continue
+              </a>
+            )
+          }
+        </div>
+        <p class="faint small center mt-2" style="margin-bottom: 0;">
+          No payment is processed on this page. Entitlements are only granted by verified server events.
+        </p>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .plan-price {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  .plan-check-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+  }
+  .plan-check-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-dim);
+    font-size: 0.94rem;
+  }
+  .plan-check-list svg { color: var(--accent); }
+  .alert--green {
+    border-color: rgba(92, 214, 138, 0.35);
+    background: var(--green-soft);
+    color: var(--green);
+  }
+</style>

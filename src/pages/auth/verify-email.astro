@@ -1,0 +1,113 @@
+---
+import MarketingLayout from '../../layouts/MarketingLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { getStore } from '../../lib/server/store';
+import { logActivity } from '../../lib/server/activity';
+import { consumeToken } from '../../lib/server/tokens';
+
+const token = Astro.url.searchParams.get('token') ?? '';
+let status: 'ok' | 'email_updated' | 'already' | 'expired' | 'invalid' = 'invalid';
+
+try {
+  const store = await getStore();
+  const result = await consumeToken(store, 'verify-email', token);
+  if (result.status === 'ok' && result.userId) {
+    const now = new Date().toISOString();
+    await store.mutate((db) => {
+      const user = db.users.find((u) => u.id === result.userId);
+      if (user) {
+        // If this token verified a new address (email change), adopt it.
+        if (result.email && user.pendingEmail === result.email) {
+          user.email = result.email;
+          user.pendingEmail = undefined;
+        }
+        if (!user.emailVerified) {
+          user.emailVerified = true;
+          user.emailVerifiedAt = now;
+        }
+        user.updatedAt = now;
+      }
+    });
+    await logActivity(store, result.userId, 'settings_change', result.email ? 'Email address changed and verified.' : 'Email address verified.');
+    status = result.email ? 'email_updated' : 'ok';
+  } else if (result.status === 'used') {
+    status = 'already';
+  } else if (result.status === 'expired') {
+    status = 'expired';
+  }
+} catch {
+  status = 'invalid';
+}
+---
+
+<MarketingLayout title="Verify email" description="Verify your Zenith email address." noindex>
+  <section class="auth-wrap">
+    <div class="auth-card card card--pad-lg center">
+      {
+        (status === 'ok' || status === 'email_updated') && (
+          <>
+            <div class="check-badge"><Icon name="shield-check" size={28} /></div>
+            <h1>{status === 'email_updated' ? 'Email updated' : 'Email verified'}</h1>
+            <p class="muted">
+              {status === 'email_updated'
+                ? 'Your new email address has been confirmed and is now active on your account.'
+                : 'Your email address has been verified. You’re all set.'}
+            </p>
+            <a class="btn btn--primary btn--lg mt-2" href="/account">Go to your account</a>
+          </>
+        )
+      }
+      {
+        status === 'already' && (
+          <>
+            <div class="check-badge"><Icon name="check" size={28} /></div>
+            <h1>Already verified</h1>
+            <p class="muted">This link was already used. Your email is already confirmed.</p>
+            <a class="btn btn--primary btn--lg mt-2" href="/account">Go to your account</a>
+          </>
+        )
+      }
+      {
+        status === 'expired' && (
+          <>
+            <div class="check-badge check-badge--error"><Icon name="alert-triangle" size={28} /></div>
+            <h1>Link expired</h1>
+            <p class="muted">This verification link has expired. Sign in and use “Resend verification” from your account settings to get a fresh one.</p>
+            <a class="btn btn--secondary btn--lg mt-2" href="/auth/signin">Sign in</a>
+          </>
+        )
+      }
+      {
+        status === 'invalid' && (
+          <>
+            <div class="check-badge check-badge--error"><Icon name="alert-triangle" size={28} /></div>
+            <h1>Invalid verification link</h1>
+            <p class="muted">This link isn’t valid. Sign in and use “Resend verification” from your account settings to get a new one.</p>
+            <a class="btn btn--secondary btn--lg mt-2" href="/auth/signin">Sign in</a>
+          </>
+        )
+      }
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .auth-wrap { display: grid; place-items: center; padding: clamp(48px, 10vw, 96px) 20px; }
+  .auth-card { width: 100%; max-width: 440px; }
+  .check-badge {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--green-soft);
+    border: 1px solid rgba(92, 214, 138, 0.4);
+    color: var(--green);
+  }
+  .check-badge--error {
+    background: var(--red-soft);
+    border-color: rgba(240, 122, 122, 0.4);
+    color: var(--red);
+  }
+</style>

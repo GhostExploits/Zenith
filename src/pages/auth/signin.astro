@@ -1,0 +1,105 @@
+---
+import MarketingLayout from '../../layouts/MarketingLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import GoogleButton from '../../components/GoogleButton.astro';
+import { getSessionUser } from '../../lib/server/auth';
+import { getStore } from '../../lib/server/store';
+
+const store = await getStore();
+const user = await getSessionUser(store, Astro.request).catch(() => null);
+if (user) return Astro.redirect('/account');
+
+const error = Astro.url.searchParams.get('error');
+const reset = Astro.url.searchParams.get('reset');
+const next = Astro.url.searchParams.get('next') ?? '/account';
+
+const errors: Record<string, string> = {
+  invalid_credentials: 'Incorrect email or password.',
+  rate_limited: 'Too many attempts. Please wait a few minutes before trying again.',
+  suspended: 'This account has been suspended.',
+  oauth_not_configured: 'Google sign-in isn’t configured on the server yet.',
+  oauth_invalid_state: 'That sign-in request expired. Please try again.',
+  oauth_failed: 'Google couldn’t complete your sign-in. Please try again.',
+  oauth_email_conflict:
+    'An account with that email exists but isn’t verified yet. Sign in with your password first, then connect Google from Settings.',
+};
+---
+
+<MarketingLayout title="Sign in" description="Sign in to your Zenith account." noindex>
+  <section class="auth-wrap">
+    <div class="auth-card card card--pad-lg">
+      <div class="auth-head">
+        <h1>Welcome back</h1>
+        <p>Sign in to manage your products, subscriptions, and downloads.</p>
+      </div>
+
+      {reset && <div class="form-success"><Icon name="check" size={16} /> Password updated — sign in with your new password.</div>}
+      {error && errors[error] && <div class="form-error"><Icon name="alert-triangle" size={16} /> {errors[error]}</div>}
+
+      <GoogleButton />
+
+      <div class="or-divider"><span>or with email</span></div>
+
+      <form method="post" action="/api/auth/signin">
+        <input type="hidden" name="next" value={next} />
+        <div class="field">
+          <label for="email">Email</label>
+          <input class="input" id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div class="field">
+          <div class="row row--between" style="margin-bottom: 6px;">
+            <label for="password" style="margin: 0;">Password</label>
+            <a class="small link" href="/auth/forgot-password">Forgot password?</a>
+          </div>
+          <input class="input" id="password" name="password" type="password" required autocomplete="current-password" placeholder="••••••••" />
+        </div>
+        <button class="btn btn--primary btn--block btn--lg" type="submit">Sign in</button>
+      </form>
+
+      <div class="auth-alt">
+        New to Zenith? <a class="link" href="/auth/signup">Create an account</a>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .auth-wrap {
+    display: grid;
+    place-items: center;
+    padding: clamp(48px, 10vw, 96px) 20px;
+  }
+  .auth-card {
+    width: 100%;
+    max-width: 440px;
+  }
+  .auth-head {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .auth-head h1 { font-size: 1.7rem; margin-bottom: 6px; }
+  .auth-head p { color: var(--text-dim); font-size: 0.95rem; margin: 0; }
+  .auth-alt {
+    text-align: center;
+    margin-top: 22px;
+    font-size: 0.92rem;
+    color: var(--text-dim);
+  }
+  .or-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0;
+    color: var(--text-faint);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .or-divider::before,
+  .or-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+</style>

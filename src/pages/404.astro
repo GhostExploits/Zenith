@@ -1,0 +1,37 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+
+// Server-rendered so the header reflects the signed-in user.
+---
+
+<MarketingLayout title="Page not found" description="The page you're looking for doesn't exist." noindex>
+  <section class="nf-wrap">
+    <div class="center">
+      <div class="nf-code" aria-hidden="true">404</div>
+      <h1>Lost in the void.</h1>
+      <p class="muted" style="max-width: 420px; margin-inline: auto;">
+        The page you're looking for doesn't exist, or it may have moved. Let's get you back somewhere useful.
+      </p>
+      <div class="row" style="justify-content: center; margin-top: 24px;">
+        <a class="btn btn--primary btn--lg" href="/">Back to home</a>
+        <a class="btn btn--secondary btn--lg" href="/products">Browse products</a>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .nf-wrap {
+    padding: clamp(64px, 14vw, 140px) 20px;
+  }
+  .nf-code {
+    font-family: var(--font-display);
+    font-size: clamp(5rem, 16vw, 9rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: transparent;
+    -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.5);
+    margin-bottom: 16px;
+  }
+</style>

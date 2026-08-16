@@ -1,0 +1,325 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Icon from '../components/icons/Icon.astro';
+import { site } from '../config/site';
+import { products } from '../content/products';
+import { plansForProduct } from '../content/plans';
+import { releasesForProduct } from '../content/changelog';
+import { faqs } from '../content/faq';
+import { formatDate, formatPrice, intervalLabel } from '../lib/format';
+
+// Server-rendered: the header reflects the signed-in user and security
+// headers are applied by middleware. (Static export would bake the anonymous
+// header into the deployed HTML.)
+
+const product = products.find((p) => p.featured) ?? products[0];
+const plans = plansForProduct(product.id).slice(0, 3);
+const releases = releasesForProduct(product.id).slice(0, 3);
+const faqPreview = faqs.filter((f) => f.published).slice(0, 4);
+const featurePreview = product.features.slice(0, 6);
+const betaAnnouncement = true; // static banner (editable via admin → Site Content)
+---
+
+<MarketingLayout
+  title="Premium Minecraft client"
+  description={site.description}
+>
+  {betaAnnouncement && (
+    <a class="announcement-banner" href="/community">
+      <span class="banner-dot"></span>
+      Zenith V2 beta is open — request access on Discord
+      <Icon name="arrow-right" size={16} />
+    </a>
+  )}
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <picture class="hero-logo">
+        <source srcset={site.logo.src} type="image/webp" />
+        <img
+          src={site.logo.srcFallback}
+          width={680}
+          height={283}
+          alt={site.logo.alt}
+          fetchpriority="high"
+        />
+      </picture>
+      <h1 data-parallax data-depth="3">Built for players who<br />demand control.</h1>
+      <p class="hero-sub" data-parallax data-depth="2">
+        A premium Minecraft client focused on performance, precise customization, and a
+        clean, modern interface. Configure everything, keep it smooth, and make the game feel yours.
+      </p>
+      <div class="hero-cta" data-parallax data-depth="1.5">
+        <a class="btn btn--primary btn--lg" href="/products">Get Zenith</a>
+        <a class="btn btn--secondary btn--lg" href="/features">Explore Features</a>
+      </div>
+      <div class="hero-spec" data-parallax data-depth="1" aria-label="Product details">
+        <span>v{product.currentVersion}</span>
+        <span class="hs-sep" aria-hidden="true">/</span>
+        <span>MC {product.minecraftVersions[0]} – {product.minecraftVersions[product.minecraftVersions.length - 1]}</span>
+        <span class="hs-sep" aria-hidden="true">/</span>
+        <span>profile sync</span>
+        <span class="hs-sep" aria-hidden="true">/</span>
+        <span class="hs-val">entitlement-managed downloads</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Product -->
+  <section class="section section--soft" data-reveal>
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">The product</span>
+        <h2>{product.name}</h2>
+        <p>{product.shortDescription}</p>
+      </div>
+
+      <div class="card card--hover card--pad-lg product-feature">
+        <div class="pf-top">
+          <div>
+            <div class="row" style="gap: 10px; margin-bottom: 10px;">
+              <span class="badge badge--accent">{product.availability === 'beta' ? 'Beta' : 'Available'}</span>
+              <span class="badge">v{product.currentVersion}</span>
+            </div>
+            <h3>{product.tagline}</h3>
+          </div>
+          <a class="btn btn--primary" href={`/products/${product.slug}`}>View product</a>
+        </div>
+        <p class="pf-desc">{product.longDescription}</p>
+        <div class="pf-points">
+          <div class="pf-point"><Icon name="gauge" size={20} /><span>Performance-focused architecture</span></div>
+          <div class="pf-point"><Icon name="sliders" size={20} /><span>Deep per-module configuration</span></div>
+          <div class="pf-point"><Icon name="cloud" size={20} /><span>Cloud profile sync</span></div>
+        </div>
+        <div class="pf-mc">
+          {product.minecraftVersions.map((v) => <span class="badge">MC {v}</span>)}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing preview -->
+  <section class="section" data-reveal>
+    <div class="container">
+      <div class="section-head section-head--center">
+        <span class="eyebrow" style="justify-content: center;">Pricing</span>
+        <h2>Simple plans. No strings.</h2>
+        <p>Monthly, yearly, or a one-time lifetime purchase — your entitlement follows your account.</p>
+      </div>
+      <div class="grid grid--3">
+        {plans.map((plan) => (
+          <div class={`card plan-card ${plan.highlighted ? 'plan-card--highlight' : ''}`}>
+            <div class="plan-name">
+              {plan.name}
+              {plan.highlighted && <span class="badge badge--accent">Recommended</span>}
+            </div>
+            <div class="plan-price">
+              {formatPrice(plan.priceCents, plan.currency)}<small>{intervalLabel(plan.interval)}</small>
+            </div>
+            <p class="plan-desc">{plan.description}</p>
+            <a class="btn btn--secondary" href={`/checkout/${plan.id}`}>Choose {plan.name}</a>
+          </div>
+        ))}
+      </div>
+      <p class="center muted small mt-2">
+        Payment processing is not connected yet — checkout is informational until a provider is integrated.
+      </p>
+    </div>
+  </section>
+
+  <!-- Features preview -->
+  <section class="section section--soft" data-reveal>
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Features</span>
+        <h2>Control every detail.</h2>
+        <p>A modular feature set organized by category, each configurable and profile-aware.</p>
+      </div>
+      <div class="grid grid--3">
+        {featurePreview.map((f) => (
+          <div class="card card--hover feature-card">
+            <div class="feature-icon"><Icon name={f.icon} size={20} /></div>
+            <h3>{f.name}</h3>
+            <p>{f.description}</p>
+          </div>
+        ))}
+      </div>
+      <div class="center mt-3">
+        <a class="btn btn--secondary" href="/features">See all features <Icon name="arrow-right" size={16} /></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Changelog preview -->
+  <section class="section" data-reveal>
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Changelog</span>
+        <h2>Recent releases</h2>
+        <p>Transparent release notes for every update.</p>
+      </div>
+      <div class="stack">
+        {releases.map((r) => (
+          <a class="card card--hover release-row" href={`/changelog/${r.id}`}>
+            <div class="rr-version">{r.version}</div>
+            <div class="rr-body">
+              <div class="row" style="gap: 10px;">
+                <span class="rr-title">{r.title}</span>
+                <span class="badge badge--accent">{r.channel}</span>
+              </div>
+              <p>{r.summary}</p>
+            </div>
+            <time class="rr-date">{formatDate(r.date)}</time>
+          </a>
+        ))}
+      </div>
+      <div class="center mt-3">
+        <a class="btn btn--secondary" href="/changelog">View full changelog <Icon name="arrow-right" size={16} /></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ preview -->
+  <section class="section section--soft" data-reveal>
+    <div class="container">
+      <div class="section-head section-head--center">
+        <span class="eyebrow" style="justify-content: center;">FAQ</span>
+        <h2>Questions, answered.</h2>
+      </div>
+      <div class="container--narrow" style="margin-inline: auto;">
+        <div class="stack">
+          {faqPreview.map((f) => (
+            <details class="faq-mini">
+              <summary>{f.question}</summary>
+              <p>{f.answer}</p>
+            </details>
+          ))}
+        </div>
+        <div class="center mt-3">
+          <a class="btn btn--secondary" href="/faq">Browse the full FAQ <Icon name="arrow-right" size={16} /></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Community CTA -->
+  <section class="section" data-reveal>
+    <div class="container">
+      <div class="card card--pad-lg community-cta">
+        <div>
+          <span class="eyebrow">Community</span>
+          <h2>Join the Zenith community.</h2>
+          <p>Beta access, announcements, configuration help, and direct feedback — all in one place.</p>
+        </div>
+        <a class="btn btn--primary btn--lg" href="/community">
+          <Icon name="discord" size={18} filled /> Join the Discord
+        </a>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .announcement-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    text-align: center;
+    background: var(--accent-soft);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--accent-strong);
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 10px 16px;
+    transition: background var(--dur) var(--ease);
+  }
+  .announcement-banner:hover { background: rgba(255, 255, 255, 0.1); }
+  .banner-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .product-feature { display: grid; gap: 18px; }
+  .pf-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .pf-top h3 { font-size: 1.5rem; margin: 0; }
+  .pf-desc { color: var(--text-dim); margin: 0; max-width: 720px; }
+  .pf-points { display: flex; gap: 26px; flex-wrap: wrap; }
+  .pf-point {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-dim);
+    font-size: 0.92rem;
+    font-weight: 500;
+  }
+  .pf-point svg { color: var(--accent); }
+  .pf-mc { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .release-row {
+    display: grid;
+    grid-template-columns: 150px 1fr auto;
+    gap: 20px;
+    align-items: center;
+    padding: 20px 24px;
+  }
+  .rr-version {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 1.05rem;
+  }
+  .rr-title { font-weight: 600; }
+  .rr-body p { color: var(--text-dim); font-size: 0.9rem; margin: 4px 0 0; }
+  .rr-date { color: var(--text-faint); font-size: 0.85rem; }
+  @media (max-width: 720px) {
+    .release-row { grid-template-columns: 1fr; gap: 10px; }
+  }
+
+  .faq-mini { padding: 16px 4px; border-bottom: 1px solid var(--border); }
+  .faq-mini:first-child { border-top: 1px solid var(--border); }
+  .faq-mini summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.98rem;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    transition: color var(--dur) var(--ease);
+  }
+  .faq-mini summary:hover { color: var(--accent-strong); }
+  .faq-mini summary::after {
+    content: '+';
+    font-family: var(--font-mono);
+    color: var(--text-faint);
+    font-size: 0.95rem;
+  }
+  .faq-mini[open] summary::after { content: '–'; color: var(--accent); }
+  .faq-mini p { color: var(--text-dim); font-size: 0.92rem; margin: 10px 0 0; max-width: 620px; }
+
+  .community-cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    background:
+      radial-gradient(42% 110% at 100% 0%, rgba(255, 255, 255, 0.04), transparent 60%),
+      var(--bg-raised);
+    border-radius: var(--radius-lg);
+  }
+  .community-cta h2 { font-size: 1.7rem; margin: 0 0 6px; }
+  .community-cta p { color: var(--text-dim); margin: 0; }
+</style>

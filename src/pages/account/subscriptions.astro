@@ -1,0 +1,160 @@
+---
+import AppLayout, { type AppLink } from '../../layouts/AppLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireUser } from '../../lib/server/guard';
+import { getProducts, getPlans } from '../../lib/server/catalog';
+import { formatDate, formatPrice, intervalLabel } from '../../lib/format';
+
+const session = await requireUser(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+
+const nav: AppLink[] = [
+  { label: 'Overview', href: '/account', icon: 'home' },
+  { label: 'Products', href: '/account/products', icon: 'package' },
+  { label: 'Subscriptions', href: '/account/subscriptions', icon: 'credit-card' },
+  { label: 'Downloads', href: '/account/downloads', icon: 'download' },
+  { label: 'Settings', href: '/account/settings', icon: 'settings' },
+];
+
+const subs = db.subscriptions
+  .filter((s) => s.userId === user.id)
+  .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+const plans = await getPlans();
+const products = await getProducts();
+const planById = new Map(plans.map((p) => [p.id, p]));
+const productById = new Map(products.map((p) => [p.id, p]));
+
+const active = subs.find((s) => s.status === 'active' && new Date(s.currentPeriodEnd).getTime() > Date.now());
+const cancelled = Astro.url.searchParams.get('cancelled');
+const reinstated = Astro.url.searchParams.get('reinstate');
+const error = Astro.url.searchParams.get('error');
+
+const statusClass = (status: string): string => {
+  if (status === 'active') return 'badge badge--green badge--dot';
+  if (status === 'past_due') return 'badge badge--red badge--dot';
+  return 'badge';
+};
+const statusLabel = (status: string): string => {
+  if (status === 'active') return 'Active';
+  if (status === 'past_due') return 'Past due';
+  if (status === 'canceled') return 'Canceled';
+  return 'Expired';
+};
+---
+
+<AppLayout title="Subscriptions" user={{ displayName: user.displayName, role: user.role }} nav={nav} noindex>
+  <div class="app-main-header">
+    <div>
+      <h1>Subscriptions</h1>
+      <p>Manage your recurring plans.</p>
+    </div>
+  </div>
+
+  {cancelled && <div class="form-success mb-2"><Icon name="check" size={16} /> Cancellation scheduled — access continues until the end of the period.</div>}
+  {reinstated && <div class="form-success mb-2"><Icon name="check" size={16} /> Cancellation revoked — your subscription will renew.</div>}
+  {error === 'not_active' && <div class="form-error mb-2"><Icon name="alert-triangle" size={16} /> This subscription is not active.</div>}
+
+  {
+    active ? (
+      <div class="card card--pad-lg mb-3">
+        <div class="row row--between" style="flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <div class="row" style="gap: 10px; flex-wrap: wrap;">
+              <h2 style="font-size: 1.35rem; margin: 0;">{productById.get(active.productId)?.name} — {planById.get(active.planId)?.name}</h2>
+              <span class:list={statusClass(active.status)}>{statusLabel(active.status)}</span>
+            </div>
+            <p class="muted small" style="margin: 6px 0 0;">
+              {planById.get(active.planId)
+                ? `${formatPrice(planById.get(active.planId)!.priceCents, planById.get(active.planId)!.currency)} ${intervalLabel(planById.get(active.planId)!.interval)}`
+                : ''}
+            </p>
+          </div>
+          {
+            active.cancelAtPeriodEnd ? (
+              <form method="post" action={`/api/account/subscriptions/${active.id}`}>
+                <input type="hidden" name="action" value="reinstate" />
+                <button class="btn btn--secondary" type="submit">Revoke cancellation</button>
+              </form>
+            ) : (
+              <form method="post" action={`/api/account/subscriptions/${active.id}`}>
+                <input type="hidden" name="action" value="cancel" />
+                <button class="btn btn--danger" type="submit">Cancel subscription</button>
+              </form>
+            )
+          }
+        </div>
+
+        <div class="grid grid--3" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+          <div class="mini-stat"><span class="faint small">Renews on</span><span>{formatDate(active.currentPeriodEnd)}</span></div>
+          <div class="mini-stat"><span class="faint small">Billing period</span><span>{intervalLabel(planById.get(active.planId)?.interval ?? 'month')}</span></div>
+          <div class="mini-stat"><span class="faint small">Status</span><span class="badge badge--green" style="justify-self: start;">{active.cancelAtPeriodEnd ? 'Cancels at period end' : 'Renewing'}</span></div>
+        </div>
+
+        <p class="faint small mt-2" style="margin-bottom: 0;">
+          Billing is managed by the payment provider once connected. Cancellation is applied server-side at the provider on the renewal date.
+        </p>
+      </div>
+    ) : (
+      <div class="empty-state mb-3">
+        <div class="empty-icon"><Icon name="credit-card" size={36} /></div>
+        <h3>No active subscriptions</h3>
+        <p>Subscribe to a plan to get recurring access to a product.</p>
+        <a class="btn btn--primary mt-2" href="/products">View plans</a>
+      </div>
+    )
+  }
+
+  <h2 class="sec-title">Subscription history</h2>
+  {
+    subs.length === 0 ? (
+      <div class="card card--pad muted">No subscription history.</div>
+    ) : (
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Plan</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Period end</th>
+            </tr>
+          </thead>
+          <tbody>
+            {subs.map((s) => (
+              <tr>
+                <td>{productById.get(s.productId)?.name ?? s.productId}</td>
+                <td>{planById.get(s.planId)?.name ?? s.planId}</td>
+                <td><span class:list={statusClass(s.status)}>{statusLabel(s.status)}</span></td>
+                <td class="faint">{formatDate(s.createdAt)}</td>
+                <td class="faint">{formatDate(s.currentPeriodEnd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+</AppLayout>
+
+<style>
+  .mini-stat {
+    display: grid;
+    gap: 4px;
+    padding: 14px 16px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-weight: 600;
+    font-size: 0.92rem;
+  }
+  .sec-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+</style>

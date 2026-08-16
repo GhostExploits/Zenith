@@ -1,0 +1,238 @@
+---
+import { site } from '../config/site';
+import Logo from './Logo.astro';
+import Icon from './icons/Icon.astro';
+
+interface Props {
+  /** Present only on server-rendered pages (account/admin). */
+  user?: { displayName: string; role: string } | null;
+}
+
+const { user } = Astro.props;
+const path = Astro.url.pathname;
+
+const accountLinks = [
+  { label: 'Overview', href: '/account', icon: 'home' },
+  { label: 'Products', href: '/account/products', icon: 'package' },
+  { label: 'Subscriptions', href: '/account/subscriptions', icon: 'credit-card' },
+  { label: 'Downloads', href: '/account/downloads', icon: 'download' },
+  { label: 'Settings', href: '/account/settings', icon: 'settings' },
+];
+---
+
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/" aria-label={`${site.name} home`}>
+      <Logo height={26} />
+    </a>
+
+    <nav class="nav-main" aria-label="Primary">
+      {site.nav.primary.map((item) => (
+        <a class="nav-link" href={item.href} aria-current={path === item.href || path.startsWith(item.href + '/') ? 'page' : undefined}>
+          {item.label}
+        </a>
+      ))}
+    </nav>
+
+    <div class="nav-cta">
+      {
+        user ? (
+          <div class="account-menu">
+            <button class="account-trigger" type="button" aria-expanded="false" aria-haspopup="true" data-account-trigger>
+              <span class="account-avatar" aria-hidden="true">{user.displayName.slice(0, 1).toUpperCase()}</span>
+              <span class="account-name">{user.displayName}</span>
+              <Icon name="chevron-down" size={16} />
+            </button>
+            <div class="account-dropdown" data-account-dropdown hidden>
+              {accountLinks.map((l) => (
+                <a href={l.href} class="account-drop-item">
+                  <Icon name={l.icon} size={16} /> {l.label}
+                </a>
+              ))}
+              {user.role !== 'user' && (
+                <a href="/admin" class="account-drop-item">
+                  <Icon name="shield-check" size={16} /> Admin
+                </a>
+              )}
+              <form method="post" action="/api/auth/signout" class="account-drop-form">
+                <button type="submit" class="account-drop-item account-drop-item--danger">
+                  <Icon name="log-out" size={16} /> Sign out
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : (
+          <>
+            <a class="btn btn--ghost" href="/auth/signin">{site.cta.signIn}</a>
+            <a class="btn btn--primary" href="/products">{site.cta.primary}</a>
+          </>
+        )
+      }
+
+      <button class="nav-burger" type="button" aria-label="Open menu" aria-expanded="false" data-menu-trigger>
+        <Icon name="menu" size={22} />
+      </button>
+    </div>
+  </div>
+
+  <div class="mobile-menu" data-mobile-menu>
+    <nav aria-label="Mobile">
+      {site.nav.primary.map((item) => (
+        <a class="nav-link" href={item.href}>
+          <span>{item.label}</span>
+          <Icon name="chevron-right" size={16} />
+        </a>
+      ))}
+      {user && accountLinks.map((l) => (
+        <a class="nav-link" href={l.href}>
+          <span>{l.label}</span>
+          <Icon name="chevron-right" size={16} />
+        </a>
+      ))}
+      <div class="nav-cta">
+        {
+          user ? (
+            <form method="post" action="/api/auth/signout" class="w-full">
+              <button class="btn btn--secondary btn--block" type="submit">Sign out</button>
+            </form>
+          ) : (
+            <>
+              <a class="btn btn--secondary btn--block" href="/auth/signin">Sign in</a>
+              <a class="btn btn--primary btn--block" href="/products">Get Zenith</a>
+            </>
+          )
+        }
+      </div>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .account-menu { position: relative; }
+  .account-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 5px 14px 5px 6px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .account-trigger:hover { background: rgba(255, 255, 255, 0.08); }
+  .account-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    color: var(--accent-strong);
+    display: grid;
+    place-items: center;
+    font-size: 0.85rem;
+  }
+  .account-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 720px) { .account-name { display: none; } }
+  .account-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 220px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 6px;
+    z-index: 60;
+  }
+  .account-drop-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    font-weight: 500;
+    background: none;
+    border: none;
+    font-family: var(--font-body);
+    text-align: left;
+    cursor: pointer;
+  }
+  .account-drop-item:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+  .account-drop-item--danger { color: var(--red); }
+  .account-drop-form { margin: 0; }
+</style>
+
+<script>
+  const trigger = document.querySelector<HTMLButtonElement>('[data-account-trigger]');
+  const dropdown = document.querySelector<HTMLElement>('[data-account-dropdown]');
+  if (trigger && dropdown) {
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = trigger.getAttribute('aria-expanded') === 'true';
+      trigger.setAttribute('aria-expanded', String(!open));
+      dropdown.hidden = open;
+    });
+    document.addEventListener('click', (e) => {
+      const target = e.target instanceof Node ? e.target : null;
+      if (target && !trigger.contains(target) && !dropdown.contains(target)) {
+        trigger.setAttribute('aria-expanded', 'false');
+        dropdown.hidden = true;
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        trigger.setAttribute('aria-expanded', 'false');
+        dropdown.hidden = true;
+      }
+    });
+  }
+
+  const burger = document.querySelector<HTMLButtonElement>('[data-menu-trigger]');
+  const menu = document.querySelector<HTMLElement>('[data-mobile-menu]');
+  const setMenu = (open: boolean) => {
+    burger?.setAttribute('aria-expanded', String(open));
+    menu?.setAttribute('data-open', String(open));
+    document.body.style.overflow = open ? 'hidden' : '';
+  };
+  if (burger && menu) {
+    burger.addEventListener('click', () => setMenu(burger.getAttribute('aria-expanded') !== 'true'));
+    // Close when a mobile link is tapped (in-page anchors or same-page links).
+    menu.addEventListener('click', (e) => {
+      const link = (e.target as Element | null)?.closest?.('a');
+      if (link && link.getAttribute('href')?.startsWith('/')) setMenu(false);
+    });
+    document.addEventListener('click', (e) => {
+      const target = e.target instanceof Node ? e.target : null;
+      if (target && !burger.contains(target) && !menu.contains(target) && menu.getAttribute('data-open') === 'true') {
+        setMenu(false);
+      }
+    });
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 720) setMenu(false);
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      setMenu(false);
+      trigger?.setAttribute('aria-expanded', 'false');
+      if (dropdown) dropdown.hidden = true;
+    }
+  });
+
+  // Elevate the header surface once the page scrolls.
+  const header = document.querySelector<HTMLElement>('.site-header');
+  if (header) {
+    const onScroll = () => header.setAttribute('data-scrolled', String(window.scrollY > 8));
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
+</script>

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /account/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /checkout/
+
+Sitemap: https://zenith.pages.dev/sitemap-index.xml

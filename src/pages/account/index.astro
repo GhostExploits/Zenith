@@ -1,0 +1,205 @@
+---
+import AppLayout, { type AppLink } from '../../layouts/AppLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireUser } from '../../lib/server/guard';
+import { ownedProductIds } from '../../lib/server/entitlements';
+import { getProducts, getPublishedAnnouncements, getPlans } from '../../lib/server/catalog';
+import { formatDate, formatRelative } from '../../lib/format';
+
+const session = await requireUser(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+
+const nav: AppLink[] = [
+  { label: 'Overview', href: '/account', icon: 'home' },
+  { label: 'Products', href: '/account/products', icon: 'package' },
+  { label: 'Subscriptions', href: '/account/subscriptions', icon: 'credit-card' },
+  { label: 'Downloads', href: '/account/downloads', icon: 'download' },
+  { label: 'Settings', href: '/account/settings', icon: 'settings' },
+];
+
+const owned = ownedProductIds(db, user);
+const products = (await getProducts()).filter((p) => owned.includes(p.id));
+const subscriptions = db.subscriptions.filter((s) => s.userId === user.id);
+const activeSub = subscriptions.find((s) => s.status === 'active' && new Date(s.currentPeriodEnd).getTime() > Date.now());
+const plans = await getPlans();
+const activity = db.activity.filter((a) => a.userId === user.id).slice(-8).reverse();
+const announcements = (await getPublishedAnnouncements()).slice(0, 3);
+const unverified = Astro.url.searchParams.get('unverified') === '1';
+---
+
+<AppLayout title="Account overview" user={{ displayName: user.displayName, role: user.role }} nav={nav} noindex>
+  <div class="app-main-header">
+    <div>
+      <h1>Overview</h1>
+      <p>Welcome back, {user.displayName}.</p>
+    </div>
+    <span class="badge badge--accent">{user.role}</span>
+  </div>
+
+  {unverified && !user.emailVerified && (
+    <div class="alert alert--accent mb-2">
+      <Icon name="mail" size={18} />
+      <span>
+        Sign in successful — but you must verify your email before you can download releases.{' '}
+        <a class="link" href="/account/settings">Resend verification</a>.
+      </span>
+    </div>
+  )}
+  {!user.emailVerified && (
+    <div class="alert alert--accent mb-2">
+      <Icon name="mail" size={18} />
+      <span>Your email isn't verified yet. <a class="link" href="/account/settings">Resend verification</a>.</span>
+    </div>
+  )}
+
+  <div class="stat-grid">
+    <div class="card card--pad stat-card">
+      <div class="stat-label">Owned products</div>
+      <div class="stat-value">{products.length}</div>
+    </div>
+    <div class="card card--pad stat-card">
+      <div class="stat-label">Active subscriptions</div>
+      <div class="stat-value">{activeSub ? 1 : 0}</div>
+    </div>
+    <div class="card card--pad stat-card">
+      <div class="stat-label">Member since</div>
+      <div class="stat-value" style="font-size: 1.25rem; padding-top: 8px;">{formatDate(user.createdAt)}</div>
+    </div>
+    <div class="card card--pad stat-card">
+      <div class="stat-label">Account status</div>
+      <div class="stat-value" style="font-size: 1.25rem; padding-top: 8px;">
+        {user.emailVerified ? 'Verified' : 'Unverified'}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid--2" style="grid-template-columns: 1.5fr 1fr; align-items: start;">
+    <div class="stack" style="gap: 24px;">
+      <div>
+        <h2 class="sec-title">Your products</h2>
+        {
+          products.length === 0 ? (
+            <div class="card card--pad muted">
+              You don't own any products yet.{' '}
+              <a class="link" href="/products">Browse products</a>
+            </div>
+          ) : (
+            <div class="stack" style="gap: 12px;">
+              {products.map((p) => (
+                <div class="card card--hover card--pad">
+                  <div class="row row--between" style="flex-wrap: wrap; gap: 10px;">
+                    <div>
+                      <div style="font-weight: 600;">{p.name}</div>
+                      <div class="faint small">v{p.currentVersion} · {p.channel}</div>
+                    </div>
+                    <span class="badge badge--green badge--dot">Entitled</span>
+                  </div>
+                  <div class="row mt-2" style="gap: 8px; flex-wrap: wrap;">
+                    <a class="btn btn--sm btn--secondary" href={`/account/downloads?product=${p.id}`}>
+                      <Icon name="download" size={14} /> Downloads
+                    </a>
+                    <a class="btn btn--sm btn--ghost" href={`/products/${p.slug}`}>Product page</a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        }
+      </div>
+
+      <div>
+        <h2 class="sec-title">Recent activity</h2>
+        {
+          activity.length === 0 ? (
+            <div class="card card--pad muted">No recent activity.</div>
+          ) : (
+            <div class="card">
+              <ul class="activity-list">
+                {activity.map((a) => (
+                  <li>
+                    <Icon name="activity" size={16} />
+                    <span>{a.message}</span>
+                    <time class="faint small">{formatRelative(a.createdAt)}</time>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+      </div>
+    </div>
+
+    <div class="stack" style="gap: 24px;">
+      <div>
+        <h2 class="sec-title">Subscription</h2>
+        {
+          activeSub ? (
+            <div class="card card--pad">
+              <div class="row row--between" style="margin-bottom: 10px;">
+                <span style="font-weight: 600;">{plans.find((p) => p.id === activeSub.planId)?.name ?? 'Subscription'}</span>
+                <span class="badge badge--green badge--dot">Active</span>
+              </div>
+              <div class="faint small">Renews {formatDate(activeSub.currentPeriodEnd)}</div>
+              {activeSub.cancelAtPeriodEnd && (
+                <div class="alert alert--accent small mt-2" style="padding: 10px 12px;">Cancels at period end.</div>
+              )}
+              <a class="btn btn--sm btn--secondary mt-2" href="/account/subscriptions">Manage</a>
+            </div>
+          ) : (
+            <div class="card card--pad muted">
+              No active subscription.
+              <div class="mt-2"><a class="btn btn--sm btn--primary" href="/products">View plans</a></div>
+            </div>
+          )
+        }
+      </div>
+
+      <div>
+        <h2 class="sec-title">Announcements</h2>
+        <div class="stack" style="gap: 10px;">
+          {announcements.map((a) => (
+            <div class="card card--pad">
+              <div class="row" style="gap: 8px; margin-bottom: 4px;">
+                {a.priority === 'high' && <span class="badge badge--accent badge--dot">New</span>}
+                <span style="font-weight: 600; font-size: 0.95rem;">{a.title}</span>
+              </div>
+              <p class="faint small" style="margin: 0;">{a.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</AppLayout>
+
+<style>
+  .sec-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .activity-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
+  }
+  .activity-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+    color: var(--text-dim);
+  }
+  .activity-list li:last-child { border-bottom: none; }
+  .activity-list svg { color: var(--accent); flex-shrink: 0; }
+  .activity-list time { margin-left: auto; }
+  @media (max-width: 980px) {
+    .grid--2[style*='1.5fr'] { grid-template-columns: 1fr !important; }
+  }
+</style>

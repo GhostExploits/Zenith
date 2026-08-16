@@ -1,0 +1,29 @@
+---
+import { site } from '../config/site';
+
+interface Props {
+  /** CSS width for the header/brand usage. */
+  height?: number;
+  class?: string;
+  priority?: boolean;
+}
+
+const { height = 28, class: className = '', priority = false } = Astro.props;
+const aspect = site.logo.width / site.logo.height;
+const width = Math.round(height * aspect);
+---
+
+<picture class={className}>
+  <source srcset={site.logo.src} type="image/webp" />
+  <img
+    src={site.logo.srcFallback}
+    srcset={`${site.logo.srcSmallFallback} 600w, ${site.logo.srcFallback} 1400w`}
+    sizes={`${width}px`}
+    width={width}
+    height={height}
+    alt={site.logo.alt}
+    loading={priority ? 'eager' : 'lazy'}
+    decoding="async"
+    style={{ width: `${width}px`, height: 'auto', display: 'block' }}
+  />
+</picture>

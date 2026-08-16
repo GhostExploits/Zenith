@@ -1,0 +1,82 @@
+---
+import '../styles/global.css';
+import { site } from '../config/site';
+import CursorFX from '../components/CursorFX.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  noindex?: boolean;
+  canonical?: string;
+}
+
+const {
+  title,
+  description = site.description,
+  image = '/og-image.png',
+  noindex = false,
+} = Astro.props;
+
+const fullTitle = title ? `${title} — ${site.name}` : `${site.name} — ${site.tagline}`;
+const canonical = Astro.props.canonical ?? new URL(Astro.url.pathname, site.url).toString();
+const url = new URL(Astro.url.pathname, site.url).toString();
+const ogImage = new URL(image, site.url).toString();
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0a0a0d" />
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href={canonical} />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={url} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+
+    <link rel="preload" as="image" href="/logo/zenith-logo.webp" type="image/webp" />
+
+    <slot name="head" />
+  </head>
+  <body>
+    <CursorFX />
+    <slot />
+    <script>
+      // Scroll reveal for [data-reveal] elements.
+      const els = document.querySelectorAll('[data-reveal]');
+      if ('IntersectionObserver' in window && els.length) {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const e of entries) {
+              if (e.isIntersecting) {
+                e.target.setAttribute('data-visible', 'true');
+                io.unobserve(e.target);
+              }
+            }
+          },
+          { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+        );
+        for (const el of els) io.observe(el);
+      } else {
+        for (const el of els) el.setAttribute('data-visible', 'true');
+      }
+    </script>
+  </body>
+</html>

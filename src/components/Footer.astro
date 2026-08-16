@@ -1,0 +1,71 @@
+---
+import { site } from '../config/site';
+import Logo from './Logo.astro';
+import Icon from './icons/Icon.astro';
+
+const year = new Date().getFullYear();
+
+const columns = [
+  {
+    heading: 'Product',
+    links: [
+      { label: 'Products', href: '/products' },
+      { label: 'Features', href: '/features' },
+      { label: 'Changelog', href: '/changelog' },
+      { label: 'Media', href: '/media' },
+    ],
+  },
+  {
+    heading: 'Support',
+    links: [
+      { label: 'Help Center', href: '/support' },
+      { label: 'FAQ', href: '/faq' },
+      { label: 'Contact', href: '/support#contact' },
+      { label: 'Community', href: '/community' },
+    ],
+  },
+  {
+    heading: 'Legal',
+    links: site.nav.legal.map((l) => ({ label: l.label, href: l.href })),
+  },
+];
+
+const socials = [
+  { name: 'discord', href: site.links.discord, label: 'Discord' },
+  { name: 'twitter', href: site.links.twitter, label: 'X / Twitter' },
+  { name: 'youtube', href: site.links.youtube, label: 'YouTube' },
+  { name: 'github', href: site.links.github, label: 'GitHub' },
+];
+---
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="/" aria-label={`${site.name} home`}><Logo height={30} /></a>
+        <p>{site.description}</p>
+      </div>
+      {columns.map((col) => (
+        <div class="footer-col">
+          <h4>{col.heading}</h4>
+          <ul>
+            {col.links.map((l) => (
+              <li><a href={l.href}>{l.label}</a></li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+
+    <div class="footer-bottom">
+      <span>© {year} {site.name}. Not affiliated with Mojang Studios or Microsoft.</span>
+      <div class="footer-socials">
+        {socials.map((s) => (
+          <a class="social-btn" href={s.href} aria-label={s.label} target={s.href.startsWith('[') ? undefined : '_blank'} rel="noreferrer">
+            <Icon name={s.name} size={18} />
+          </a>
+        ))}
+      </div>
+    </div>
+  </div>
+</footer>

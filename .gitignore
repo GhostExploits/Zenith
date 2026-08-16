@@ -1,0 +1,29 @@
+# --- Dependencies ---
+node_modules/
+
+# --- Build output ---
+dist/
+.astro/
+
+# --- Cloudflare local tooling cache ---
+.wrangler/
+
+# --- Environment & secrets (never commit) ---
+.env
+.env.local
+.env.production
+.env.*.local
+
+# --- Local development data (dev database + private download storage) ---
+data/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

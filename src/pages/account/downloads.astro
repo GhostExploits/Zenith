@@ -1,0 +1,122 @@
+---
+import AppLayout, { type AppLink } from '../../layouts/AppLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireUser } from '../../lib/server/guard';
+import { subscribedProductIds } from '../../lib/server/entitlements';
+import { getProducts, getReleasesForProduct } from '../../lib/server/catalog';
+import { formatDate, formatBytes } from '../../lib/format';
+
+const session = await requireUser(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+
+const nav: AppLink[] = [
+  { label: 'Overview', href: '/account', icon: 'home' },
+  { label: 'Products', href: '/account/products', icon: 'package' },
+  { label: 'Subscriptions', href: '/account/subscriptions', icon: 'credit-card' },
+  { label: 'Downloads', href: '/account/downloads', icon: 'download' },
+  { label: 'Settings', href: '/account/settings', icon: 'settings' },
+];
+
+// Downloads are for active subscribers only — a lapsed subscription
+// immediately removes the product from this list.
+const subscribed = subscribedProductIds(db, user);
+const products = (await getProducts()).filter((p) => subscribed.includes(p.id));
+const filter = Astro.url.searchParams.get('product');
+
+const rows: { release: Awaited<ReturnType<typeof getReleasesForProduct>>[number]; product: (typeof products)[number] }[] = [];
+for (const p of products) {
+  for (const r of await getReleasesForProduct(p.id)) {
+    if (filter && r.productId !== filter) continue;
+    rows.push({ release: r, product: p });
+  }
+}
+rows.sort((a, b) => (a.release.date < b.release.date ? 1 : -1));
+---
+
+<AppLayout title="Downloads" user={{ displayName: user.displayName, role: user.role }} nav={nav} noindex>
+  <div class="app-main-header">
+    <div>
+      <h1>Downloads</h1>
+      <p>Releases for products you're subscribed to. Access is checked server-side on every download.</p>
+    </div>
+  </div>
+
+  {
+    products.length > 1 && (
+      <div class="chip-row mb-3">
+        <a class={`chip ${!filter ? 'chip--on' : ''}`} href="/account/downloads">All</a>
+        {products.map((p) => (
+          <a class={`chip ${filter === p.id ? 'chip--on' : ''}`} href={`/account/downloads?product=${p.id}`}>
+            {p.name}
+          </a>
+        ))}
+      </div>
+    )
+  }
+
+  {
+    rows.length === 0 ? (
+      <div class="empty-state">
+        <div class="empty-icon"><Icon name="download" size={36} /></div>
+        <h3>Nothing to download yet</h3>
+        <p>
+          {subscribed.length === 0
+            ? 'Downloads are available to subscribers. Choose a plan to get access.'
+            : 'No public releases have been published for your subscribed products yet.'}
+        </p>
+        {subscribed.length === 0 && <a class="btn btn--primary mt-2" href="/products">View plans</a>}
+      </div>
+    ) : (
+      <div class="stack" style="gap: 14px;">
+        {rows.map(({ release, product }) => (
+          <div class="card card--pad">
+            <div class="row row--between" style="flex-wrap: wrap; gap: 14px;">
+              <div>
+                <div class="row" style="gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
+                  <span class="release-version">{release.version}</span>
+                  <span class="badge badge--accent">{release.channel}</span>
+                  <span class="faint small">{formatDate(release.date)}</span>
+                </div>
+                <div style="font-weight: 600;">{release.title}</div>
+                <div class="faint small" style="margin-top: 4px;">
+                  {product.name} · {release.minecraftVersions.join(', ')}
+                  {release.asset && <> · {release.asset.filename} {release.asset.sizeBytes > 0 && `(${formatBytes(release.asset.sizeBytes)})`}</>}
+                </div>
+              </div>
+              <a class="btn btn--primary" href={`/api/downloads/${release.id}`}>
+                <Icon name="download" size={16} /> Download
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  <div class="alert alert--info mt-3">
+    <Icon name="info" size={18} />
+    <span>Downloads are verified on every request: signed-in session, active subscription, and release access rules are checked server-side before a file is sent.</span>
+  </div>
+</AppLayout>
+
+<style>
+  .release-version {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    color: var(--text-dim);
+    font-size: 0.84rem;
+    font-weight: 600;
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .chip:hover { color: var(--text); }
+  .chip--on { background: var(--accent-soft); border-color: rgba(255, 255, 255, 0.38); color: var(--accent-strong); }
+</style>

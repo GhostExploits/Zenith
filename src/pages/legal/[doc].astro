@@ -1,0 +1,53 @@
+---
+import MarketingLayout from '../../layouts/MarketingLayout.astro';
+import { legalDocs, getLegalDoc } from '../../content/legal';
+import { formatDate } from '../../lib/format';
+
+// Server-rendered: legal pages use request-dependent data (canonical URL,
+// signed-in header), so they are served by the worker rather than prerendered.
+
+const { doc } = Astro.params;
+const legal = getLegalDoc(doc ?? '');
+if (!legal) return Astro.redirect('/404');
+---
+
+<MarketingLayout title={legal.title} description={`${legal.title} — placeholder policy document.`}>
+  <section class="page-hero">
+    <div class="container container--narrow">
+      <span class="eyebrow">Legal</span>
+      <h1 data-parallax data-depth="4">{legal.title}</h1>
+      <p class="faint small">Last updated {formatDate(legal.updated)}</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container container--narrow">
+      <div class="alert alert--accent mb-3">
+        <strong>Placeholder.</strong> This policy is a draft and has not been finalized. It will be
+        replaced with the official document before launch.
+      </div>
+      <p class="muted">{legal.intro}</p>
+      <div class="stack" style="gap: 26px; margin-top: 32px;">
+        {legal.sections.map((s) => (
+          <section>
+            <h2 style="font-size: 1.15rem;">{s.heading}</h2>
+            <p class="muted" style="margin: 0;">{s.body}</p>
+          </section>
+        ))}
+      </div>
+
+      <hr class="divider" />
+      <nav class="legal-nav" aria-label="Legal documents">
+        {legalDocs.map((l) => (
+          <a class="btn btn--ghost btn--sm" href={`/legal/${l.slug}`} aria-current={l.slug === legal.slug ? 'page' : undefined}>
+            {l.title}
+          </a>
+        ))}
+      </nav>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .legal-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>
