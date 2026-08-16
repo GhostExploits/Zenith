@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
-import { fail, redirectTo, requireStore } from '../../../../lib/server/api';
+import { ApiError, fail, redirectTo, requireStore } from '../../../../lib/server/api';
 import { cookieAttributes, createSession } from '../../../../lib/server/auth';
 import { handleGoogleCallback, linkGoogleIdentity } from '../../../../lib/server/google';
 import { logActivity } from '../../../../lib/server/activity';
+import { clientKey, isRateLimited } from '../../../../lib/server/rateLimit';
 
 /**
  * Google OAuth callback.
@@ -13,6 +14,9 @@ import { logActivity } from '../../../../lib/server/activity';
  */
 export const GET: APIRoute = async (ctx) => {
   try {
+    if (isRateLimited(`oauth:${clientKey(ctx.request)}`)) {
+      throw new ApiError(429, 'rate_limited', 'Too many attempts. Please wait a few minutes.');
+    }
     const result = await handleGoogleCallback(ctx.request);
     const setCookie = [result.clearCookie];
 

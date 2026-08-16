@@ -27,3 +27,8 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Generated archives
+*.zip
+# Freebuff internal worktrees — never commit these
+.freebuff/

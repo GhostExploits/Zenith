@@ -6,12 +6,17 @@ import { getPublishedAnnouncements } from '../lib/server/catalog';
 import { formatDate } from '../lib/format';
 
 const announcements = (await getPublishedAnnouncements()).slice(0, 4);
+// Placeholder links ([BRACKETED]) are not real destinations yet — never
+// render them as clickable links. They are set in src/config/site.ts or
+// Admin → Site Content once real URLs exist.
+const real = (href: string) => !!href && !href.startsWith('[');
 const socials = [
   { name: 'discord', label: 'Discord', desc: 'Beta access, announcements, and community support.', href: site.links.discord, filled: true },
   { name: 'twitter', label: 'X / Twitter', desc: 'Product updates and development notes.', href: site.links.twitter, filled: true },
   { name: 'youtube', label: 'YouTube', desc: 'Showcases and configuration guides.', href: site.links.youtube, filled: true },
   { name: 'github', label: 'GitHub', desc: 'Public tooling and issue tracking.', href: site.links.github, filled: true },
-];
+].filter((s) => real(s.href));
+const discordHref = real(site.links.discord) ? site.links.discord : null;
 ---
 
 <MarketingLayout title="Community" description="Join the Zenith community.">
@@ -33,10 +38,17 @@ const socials = [
             Get beta access, follow development, share configs, and get help from staff and
             experienced members.
           </p>
-          <a class="btn btn--primary btn--lg mt-2" href={site.links.discord} target="_blank" rel="noreferrer">
-            <Icon name="discord" size={20} filled /> Join the Discord
-          </a>
-          <p class="faint small mt-2">Discord link placeholder — replace in src/config/site.ts or Admin → Site Content.</p>
+          {
+            discordHref ? (
+              <a class="btn btn--primary btn--lg mt-2" href={discordHref} target="_blank" rel="noreferrer">
+                <Icon name="discord" size={20} filled /> Join the Discord
+              </a>
+            ) : (
+              <span class="btn btn--secondary btn--lg mt-2" aria-disabled="true" style="cursor: default; opacity: 0.7;">
+                <Icon name="discord" size={20} filled /> Discord link coming soon
+              </span>
+            )
+          }
         </div>
         <div class="discord-art" aria-hidden="true">
           <Icon name="discord" size={120} filled />

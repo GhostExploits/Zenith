@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { site } from '../config/site';
 import CursorFX from '../components/CursorFX.astro';
+import DevNotice from '../components/DevNotice.astro';
 
 interface Props {
   title?: string;
@@ -57,6 +58,7 @@ const ogImage = new URL(image, site.url).toString();
   </head>
   <body>
     <CursorFX />
+    <DevNotice />
     <slot />
     <script>
       // Scroll reveal for [data-reveal] elements.

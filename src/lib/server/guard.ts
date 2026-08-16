@@ -47,12 +47,12 @@ export async function requireUser(astro: AstroGlobal): Promise<PageSession | Res
   return session;
 }
 
-/** Require an administrator (admin or owner), else return a redirect to the account area. */
+/** Require an administrator (admin or owner), else return a redirect to the styled denial page. */
 export async function requireAdmin(astro: AstroGlobal): Promise<PageSession | Response> {
   const session = await requireUser(astro);
   if (session instanceof Response) return session;
   if (session.user.role !== 'admin' && session.user.role !== 'owner') {
-    return astro.redirect('/account');
+    return astro.redirect('/denied?reason=forbidden');
   }
   return session;
 }

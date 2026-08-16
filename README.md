@@ -12,6 +12,11 @@ secure admin foundation — built to deploy on Cloudflare Pages.
 > designed-for and documented below but intentionally not connected yet —
 > those routes return a clean `503 backend_not_configured` until then.
 
+> **Owner guides:** [`CUSTOMIZE.md`](CUSTOMIZE.md) — where to edit text,
+> screenshots, colors, and how to use the admin panel. [`DEPLOY.md`](DEPLOY.md)
+> — step-by-step Cloudflare Pages publishing (connect this GitHub repo; you do
+> not upload a static folder).
+
 ---
 
 ## Quick start
@@ -174,7 +179,10 @@ The browser is never trusted. Everything sensitive is enforced server-side:
 - **Roles** — `user → moderator/support → admin → owner`, enforced in API
   guards (`requireAdmin`) and SSR page guards. Role changes respect rank.
 - **Admin audit log** — every admin mutation records actor, action, resource,
-  details, IP, timestamp (visible at `/admin/audit`).
+  details, IP, timestamp (visible in the admin panel → Audit Log).
+- **Hidden admin panel** — lives at a non-obvious path (see `CUSTOMIZE.md`),
+  is never linked from public pages, and is excluded from `robots.txt`, the
+  sitemap, and search-engine indexing. Access is enforced server-side.
 - **Protected downloads** — `/api/downloads/[releaseId]` checks: session →
   published release → **server-side entitlement** → private storage. Files are
   never placed in `public/`. Placeholder assets live in `data/storage` (dev).
@@ -267,7 +275,9 @@ console transport is used.
 
 ## Admin panel
 
-`/admin` (server-guarded; role must be `admin` or `owner`):
+The panel is intentionally unadvertised — the path is documented in
+`CUSTOMIZE.md` (the route prefix is `/hq`). It is server-guarded; role must be
+`admin` or `owner`:
 
 - **Dashboard** — user/subscription/product/release counts, recent activity.
 - **Users** — search, role management, suspend/reinstate (suspension signs the
@@ -279,8 +289,8 @@ console transport is used.
   (whitelisted fields only — no raw code editing).
 - **Audit Log** — immutable record of admin actions.
 
-Normal users hitting `/admin` are redirected to `/account`; API admin routes
-return 403.
+Normal users hitting the panel are sent to the styled denial page; API admin
+routes return 403.
 
 ---
 

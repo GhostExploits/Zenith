@@ -17,7 +17,15 @@ export default defineConfig({
     platformProxy: { enabled: true },
   }),
 
-  integrations: [sitemap()],
+  integrations: [
+    sitemap({
+      // Keep private surfaces out of the public sitemap: the account area,
+      // checkout, the styled denial page, and the (deliberately unadvertised)
+      // admin panel must never be indexed or discoverable.
+      filter: (page) =>
+        !/\/(account|checkout|denied|hq|admin)(\/|$)/.test(new URL(page).pathname),
+    }),
+  ],
 
   vite: {
     build: {

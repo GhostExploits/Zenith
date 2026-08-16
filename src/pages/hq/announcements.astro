@@ -1,0 +1,112 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireAdmin } from '../../lib/server/guard';
+import ConfirmDialog from '../../components/ConfirmDialog.astro';
+import { formatDate } from '../../lib/format';
+
+const session = await requireAdmin(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+const items = db.announcements.sort((a, b) => (a.date < b.date ? 1 : -1));
+const item = Astro.url.searchParams.get('id') ? db.announcements.find((a) => a.id === Astro.url.searchParams.get('id')) : undefined;
+const isNew = !item;
+const action = isNew ? 'create' : 'update';
+
+const f = (key: string, fallback = '') => {
+  const val = item?.[key as keyof typeof item];
+  return val === undefined || val === null ? String(fallback) : String(val);
+};
+---
+
+<AdminLayout title="Announcements" user={user}>
+  <div class="app-main-header">
+    <div>
+      <h1>Announcements</h1>
+      <p>Site-wide announcements shown on the home page and account overview.</p>
+    </div>
+    <a class="btn btn--primary" href="/hq/announcements?id=new"><Icon name="plus" size={16} /> New announcement</a>
+  </div>
+
+  {
+    items.length === 0 ? (
+      <div class="empty-state"><h3>No announcements yet</h3></div>
+    ) : (
+      <div class="table-wrap mb-3">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Priority</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((a) => (
+              <tr>
+                <td style="font-weight: 600;">{a.title}</td>
+                <td><span class={`badge ${a.priority === 'high' ? 'badge--accent' : ''}`}>{a.priority}</span></td>
+                <td class="faint small">{formatDate(a.date)}</td>
+                <td>{a.published ? <span class="badge badge--green badge--dot">Published</span> : <span class="badge">Draft</span>}</td>
+                <td>
+                  <div class="row" style="gap: 6px; justify-content: flex-end;">
+                    <a class="btn btn--sm btn--secondary" href={`/hq/announcements?id=${a.id}`}><Icon name="edit" size={14} /> Edit</a>
+                    <form method="post" action="/api/admin/announcements" data-confirm="Delete this announcement?">
+                      <input type="hidden" name="action" value="delete" />
+                      <input type="hidden" name="id" value={a.id} />
+                      <button class="btn btn--sm btn--danger" type="submit"><Icon name="trash" size={14} /></button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  <div class="card card--pad-lg" id="form">
+    <h2 class="sec-title">{isNew ? 'Create announcement' : 'Edit announcement'}</h2>
+    <form method="post" action="/api/admin/announcements" style="max-width: 720px;">
+      <input type="hidden" name="action" value={action} />
+      {!isNew && <input type="hidden" name="id" value={item!.id} />}
+      <div class="grid grid--3">
+        <div class="field">
+          <label for="date">Date</label>
+          <input class="input" id="date" name="date" type="date" value={f('date', new Date().toISOString().slice(0, 10))} />
+        </div>
+        <div class="field">
+          <label for="priority">Priority</label>
+          <select class="select" id="priority" name="priority">
+            {['low', 'normal', 'high'].map((p) => <option value={p} selected={f('priority') === p}>{p}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label class="check" style="margin-top: 26px;"><input type="checkbox" name="published" value="true" checked={item?.published !== false} /> Published</label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="title">Title *</label>
+        <input class="input" id="title" name="title" required value={f('title')} />
+      </div>
+      <div class="field">
+        <label for="body">Body *</label>
+        <textarea class="textarea" id="body" name="body" required style="min-height: 100px;">{f('body')}</textarea>
+      </div>
+      <button class="btn btn--primary" type="submit">{isNew ? 'Create announcement' : 'Save changes'}</button>
+    </form>
+  </div>
+<ConfirmDialog />
+</AdminLayout>
+
+<style>
+  .sec-title { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 16px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; color: var(--text-dim); cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+</style>
+
+

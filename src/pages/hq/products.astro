@@ -1,0 +1,80 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireAdmin } from '../../lib/server/guard';
+import ConfirmDialog from '../../components/ConfirmDialog.astro';
+
+const session = await requireAdmin(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+const products = db.products.sort((a, b) => a.name.localeCompare(b.name));
+---
+
+<AdminLayout title="Products" user={user}>
+  <div class="app-main-header">
+    <div>
+      <h1>Products</h1>
+      <p>Create and manage products. Published products appear on the public site automatically.</p>
+    </div>
+    <a class="btn btn--primary" href="/hq/products/edit"><Icon name="plus" size={16} /> New product</a>
+  </div>
+
+  {
+    products.length === 0 ? (
+      <div class="empty-state">
+        <div class="empty-icon"><Icon name="package" size={36} /></div>
+        <h3>No products yet</h3>
+        <p>Create your first product to get started.</p>
+        <a class="btn btn--primary mt-2" href="/hq/products/edit">Add product</a>
+      </div>
+    ) : (
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Slug</th>
+              <th>Status</th>
+              <th>Availability</th>
+              <th>Version</th>
+              <th>Featured</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p) => (
+              <tr>
+                <td style="font-weight: 600;">{p.name}</td>
+                <td class="muted">/{p.slug}</td>
+                <td><span class="badge">{p.status}</span></td>
+                <td><span class={`badge ${p.availability === 'available' ? 'badge--green' : p.availability === 'beta' ? 'badge--accent' : ''}`}>{p.availability}</span></td>
+                <td class="muted">v{p.currentVersion}</td>
+                <td>{p.featured ? <span class="badge badge--accent">Featured</span> : <span class="faint">—</span>}</td>
+                <td>
+                  <div class="row" style="gap: 6px; justify-content: flex-end;">
+                    <a class="btn btn--sm btn--secondary" href={`/hq/products/edit?id=${p.id}`}><Icon name="edit" size={14} /> Edit</a>
+                    <a class="btn btn--sm btn--ghost" href={`/products/${p.slug}`} target="_blank"><Icon name="external" size={14} /></a>
+                    <form method="post" action="/api/admin/products" data-confirm={`Delete ${p.name}? This cannot be undone.`}>
+                      <input type="hidden" name="action" value="delete" />
+                      <input type="hidden" name="id" value={p.id} />
+                      <button class="btn btn--sm btn--danger" type="submit" aria-label={`Delete ${p.name}`}><Icon name="trash" size={14} /></button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  <div class="alert alert--info mt-3">
+    <Icon name="info" size={18} />
+    <span>Deleting a product removes it from the catalog but keeps historical purchases/subscriptions intact.</span>
+  </div>
+<ConfirmDialog />
+</AdminLayout>
+
+

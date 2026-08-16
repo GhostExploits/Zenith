@@ -1,9 +1,47 @@
 import type { APIRoute } from 'astro';
-import { ApiError, fail, requireUser } from '../../../lib/server/api';
+import { ApiError, fail, redirectTo, requireUser } from '../../../lib/server/api';
 import { getStoredAsset } from '../../../lib/server/storage';
 import { hasSubscribedAccess } from '../../../lib/server/entitlements';
 import { logActivity } from '../../../lib/server/activity';
 import { getProductById, getRelease } from '../../../lib/server/catalog';
+import { StorageNotConfiguredError } from '../../../lib/server/store';
+import { clientKey, isRateLimited } from '../../../lib/server/rateLimit';
+
+/** Map API error codes to styled-denial reasons for browser visitors. */
+const DENIED_REASONS: Record<string, string> = {
+  unauthenticated: 'signin_required',
+  email_unverified: 'email_unverified',
+  no_subscription: 'no_subscription',
+  not_found: 'not_found',
+  not_published: 'not_found',
+  asset_missing: 'not_found',
+  storage_not_configured: 'not_configured',
+};
+
+/** Browser navigation vs. API client (launcher/curl). */
+function isBrowser(request: Request): boolean {
+  const accept = request.headers.get('accept') ?? '';
+  const dest = request.headers.get('sec-fetch-dest') ?? '';
+  return accept.includes('text/html') || dest === 'document';
+}
+
+/**
+ * For browser visitors, turn a denial into a redirect to the styled
+ * /denied page (with the reason + a next link back). Returns null when the
+ * error has no browser-friendly mapping (API clients get JSON instead).
+ */
+function deniedRedirect(ctx: Parameters<APIRoute>[0], error: unknown): Response | null {
+  let reason: string | null = null;
+  if (error instanceof ApiError) {
+    reason = DENIED_REASONS[error.code] ?? null;
+  } else if (error instanceof StorageNotConfiguredError) {
+    reason = 'not_configured';
+  }
+  if (!reason) return null;
+  const url = new URL(ctx.request.url);
+  const location = `/denied?reason=${reason}&next=${encodeURIComponent(url.pathname + url.search)}`;
+  return redirectTo(ctx, location);
+}
 
 /**
  * Protected download endpoint.
@@ -20,6 +58,9 @@ import { getProductById, getRelease } from '../../../lib/server/catalog';
  */
 export const GET: APIRoute = async (ctx) => {
   try {
+    if (isRateLimited(`download:${clientKey(ctx.request)}`)) {
+      throw new ApiError(429, 'rate_limited', 'Too many download requests. Please wait a few minutes.');
+    }
     const { user, store } = await requireUser(ctx);
     const releaseId = ctx.params.releaseId ?? '';
 
@@ -54,7 +95,7 @@ export const GET: APIRoute = async (ctx) => {
     await logActivity(store, user.id, 'download', `Downloaded ${product?.name ?? 'product'} ${release.version}.`, ctx.request);
 
     const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-    return new Response(asset.stream as unknown as BodyInit, {
+    return new Response(asset.data, {
       status: 200,
       headers: {
         'Content-Type': 'application/octet-stream',
@@ -65,6 +106,10 @@ export const GET: APIRoute = async (ctx) => {
       },
     });
   } catch (error) {
+    if (isBrowser(ctx.request)) {
+      const denied = deniedRedirect(ctx, error);
+      if (denied) return denied;
+    }
     return fail(error);
   }
 };

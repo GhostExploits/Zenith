@@ -1,0 +1,141 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Icon from '../../../components/icons/Icon.astro';
+import { requireAdmin } from '../../../lib/server/guard';
+
+const session = await requireAdmin(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+const id = Astro.url.searchParams.get('id') ?? '';
+const product = id ? db.products.find((p) => p.id === id) : undefined;
+const isNew = !id || !product;
+
+const v = (key: string, fallback = '') => {
+  const value = product?.[key as keyof typeof product];
+  return value === undefined || value === null ? fallback : String(value);
+};
+const vArr = (key: string) => (product?.[key as keyof typeof product] as string[] | undefined) ?? [];
+const action = isNew ? 'create' : 'update';
+const error = Astro.url.searchParams.get('error');
+---
+
+<AdminLayout title={isNew ? 'New product' : `Edit ${product?.name}`} user={user}>
+  <div class="app-main-header">
+    <div>
+      <h1>{isNew ? 'New product' : `Edit — ${product?.name}`}</h1>
+      <p>Products become visible on the public site when published.</p>
+    </div>
+    <a class="btn btn--ghost" href="/hq/products"><Icon name="arrow-left" size={16} /> All products</a>
+  </div>
+
+  {error === 'duplicate' && <div class="form-error mb-2"><Icon name="alert-triangle" size={16} /> Another product already uses that slug.</div>}
+  {error === 'validation' && <div class="form-error mb-2"><Icon name="alert-triangle" size={16} /> Please fill in the required fields correctly.</div>}
+
+  <form method="post" action="/api/admin/products" style="max-width: 760px;">
+    <input type="hidden" name="action" value={action} />
+    {!isNew && <input type="hidden" name="id" value={product!.id} />}
+
+    <div class="card card--pad mb-2">
+      <h2 class="sec-title">Basics</h2>
+      <div class="grid grid--2">
+        <div class="field">
+          <label for="name">Name *</label>
+          <input class="input" id="name" name="name" required value={v('name')} placeholder="Zenith V2" />
+        </div>
+        <div class="field">
+          <label for="slug">Slug *</label>
+          <input class="input" id="slug" name="slug" required value={v('slug')} placeholder="zenith-v2" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="tagline">Tagline</label>
+        <input class="input" id="tagline" name="tagline" value={v('tagline')} />
+      </div>
+      <div class="field">
+        <label for="shortDescription">Short description</label>
+        <textarea class="textarea" id="shortDescription" name="shortDescription" style="min-height: 70px;">{v('shortDescription')}</textarea>
+      </div>
+      <div class="field">
+        <label for="longDescription">Long description</label>
+        <textarea class="textarea" id="longDescription" name="longDescription">{v('longDescription')}</textarea>
+      </div>
+      <div class="field">
+        <label for="icon">Icon asset path</label>
+        <input class="input" id="icon" name="icon" value={v('icon')} placeholder="/logo/zenith-logo-600.webp" />
+      </div>
+    </div>
+
+    <div class="card card--pad mb-2">
+      <h2 class="sec-title">Status & compatibility</h2>
+      <div class="grid grid--3">
+        <div class="field">
+          <label for="status">Status</label>
+          <select class="select" id="status" name="status">
+            {['planning', 'beta', 'released', 'deprecated'].map((s) => <option value={s} selected={v('status') === s}>{s}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="availability">Availability</label>
+          <select class="select" id="availability" name="availability">
+            {['available', 'coming-soon', 'unavailable'].map((s) => <option value={s} selected={v('availability') === s}>{s}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="channel">Channel</label>
+          <select class="select" id="channel" name="channel">
+            {['stable', 'beta', 'dev'].map((s) => <option value={s} selected={v('channel') === s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+      <div class="grid grid--3">
+        <div class="field">
+          <label for="currentVersion">Current version</label>
+          <input class="input" id="currentVersion" name="currentVersion" value={v('currentVersion')} placeholder="0.4.2-beta" />
+        </div>
+        <div class="field">
+          <label for="purchaseType">Purchase type</label>
+          <select class="select" id="purchaseType" name="purchaseType">
+            {['subscription', 'permanent', 'both', 'free'].map((s) => <option value={s} selected={v('purchaseType') === s}>{s}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="minecraftVersions">Minecraft versions (comma-separated)</label>
+          <input class="input" id="minecraftVersions" name="minecraftVersions" value={vArr('minecraftVersions').join(', ')} placeholder="1.8.9, 1.12.2, 1.21.x" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="platforms">Platforms (comma-separated)</label>
+        <input class="input" id="platforms" name="platforms" value={vArr('platforms').join(', ')} placeholder="Windows 10/11, macOS, Linux" />
+      </div>
+      <div class="row" style="gap: 22px; flex-wrap: wrap;">
+        <label class="check"><input type="checkbox" name="featured" value="true" checked={product?.featured} /> Featured on home</label>
+        <label class="check"><input type="checkbox" name="downloadEnabled" value="true" checked={product?.downloadEnabled} /> Downloads enabled</label>
+      </div>
+    </div>
+
+    <div class="row" style="gap: 10px;">
+      <button class="btn btn--primary btn--lg" type="submit">{isNew ? 'Create product' : 'Save changes'}</button>
+      <a class="btn btn--secondary btn--lg" href="/hq/products">Cancel</a>
+    </div>
+  </form>
+</AdminLayout>
+
+<style>
+  .sec-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 16px;
+  }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.92rem;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+</style>

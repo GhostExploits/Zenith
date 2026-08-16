@@ -1,0 +1,156 @@
+---
+/**
+ * Shared confirmation dialog for destructive/important admin actions.
+ *
+ * Any <form data-confirm="message"> on the page is intercepted: submitting it
+ * opens this styled modal instead of a native browser confirm. On confirm the
+ * form is submitted normally; on cancel / Escape / backdrop click it is not.
+ *
+ * Also adds an inline loading state to the submit button of any
+ * method="post" form while it is being submitted.
+ */
+---
+
+<div class="confirm-root" data-confirm-root hidden>
+  <div class="confirm-backdrop" data-confirm-backdrop></div>
+  <div
+    class="confirm-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="confirm-title"
+    data-confirm-dialog
+  >
+    <div class="confirm-icon" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+    </div>
+    <h3 id="confirm-title">Confirm action</h3>
+    <p data-confirm-message></p>
+    <div class="confirm-actions">
+      <button class="btn btn--secondary" type="button" data-confirm-cancel>Cancel</button>
+      <button class="btn btn--danger" type="button" data-confirm-ok>Confirm</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .confirm-root {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+  }
+  /* The `hidden` attribute must win over `display: grid` above. */
+  .confirm-root[hidden] {
+    display: none;
+  }
+  .confirm-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 5, 8, 0.72);
+    backdrop-filter: blur(3px);
+    animation: confirm-fade 150ms ease-out;
+  }
+  .confirm-dialog {
+    position: relative;
+    width: min(420px, 100%);
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 26px 26px 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: confirm-pop 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  }
+  .confirm-icon {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius);
+    background: var(--red-soft);
+    color: var(--red);
+    margin-bottom: 14px;
+  }
+  .confirm-dialog h3 {
+    margin: 0 0 6px;
+    font-size: 1.05rem;
+  }
+  .confirm-dialog p {
+    margin: 0 0 22px;
+    color: var(--text-dim);
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  .confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  @keyframes confirm-fade {
+    from { opacity: 0; }
+  }
+  @keyframes confirm-pop {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-confirm-root]');
+  const dialog = root?.querySelector<HTMLElement>('[data-confirm-dialog]');
+  const message = root?.querySelector<HTMLElement>('[data-confirm-message]');
+  const okBtn = root?.querySelector<HTMLButtonElement>('[data-confirm-ok]');
+  const cancelBtn = root?.querySelector<HTMLButtonElement>('[data-confirm-cancel]');
+  const backdrop = root?.querySelector<HTMLElement>('[data-confirm-backdrop]');
+
+  if (root && dialog && okBtn && cancelBtn) {
+    let pending: HTMLFormElement | null = null;
+    let lastTrigger: HTMLElement | null = null;
+    const confirmed = new WeakSet<HTMLFormElement>();
+
+    const open = (form: HTMLFormElement) => {
+      pending = form;
+      if (message) message.textContent = form.dataset.confirm ?? 'Are you sure?';
+      root.hidden = false;
+      lastTrigger = document.activeElement as HTMLElement | null;
+      cancelBtn.focus();
+      dialog.setAttribute('data-open', 'true');
+    };
+    const close = () => {
+      root.hidden = true;
+      pending = null;
+      dialog.removeAttribute('data-open');
+      lastTrigger?.focus();
+    };
+
+    document.addEventListener('submit', (e) => {
+      const form = e.target as HTMLFormElement;
+      if (!(form instanceof HTMLFormElement)) return;
+      // Loading state on the submit button of any POST form.
+      if (form.method?.toLowerCase() === 'post') {
+        const active = document.activeElement as HTMLButtonElement | null;
+        const btn = (active && form.contains(active) && active instanceof HTMLButtonElement ? active : form.querySelector('button[type="submit"]')) as HTMLButtonElement | null;
+        btn?.classList.add('is-loading');
+      }
+      if (form.hasAttribute('data-confirm') && !confirmed.has(form)) {
+        e.preventDefault();
+        open(form);
+      }
+    });
+
+    const confirmAction = () => {
+      if (!pending) return;
+      confirmed.add(pending);
+      root.hidden = true;
+      pending.requestSubmit();
+      pending = null;
+    };
+
+    okBtn.addEventListener('click', confirmAction);
+    cancelBtn.addEventListener('click', close);
+    backdrop?.addEventListener('click', close);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !root.hidden) close();
+    });
+  }
+</script>

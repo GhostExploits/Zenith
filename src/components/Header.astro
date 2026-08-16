@@ -50,7 +50,7 @@ const accountLinks = [
                 </a>
               ))}
               {user.role !== 'user' && (
-                <a href="/admin" class="account-drop-item">
+                <a href="/hq" class="account-drop-item">
                   <Icon name="shield-check" size={16} /> Admin
                 </a>
               )}
@@ -217,7 +217,7 @@ const accountLinks = [
       }
     });
     window.addEventListener('resize', () => {
-      if (window.innerWidth > 720) setMenu(false);
+      if (window.innerWidth > 960) setMenu(false);
     });
   }
   document.addEventListener('keydown', (e) => {

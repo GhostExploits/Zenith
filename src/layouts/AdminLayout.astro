@@ -10,16 +10,18 @@ interface Props {
 
 const { title, description, user } = Astro.props;
 
+// The panel deliberately lives at a non-obvious path and is never linked from
+// public pages, robots.txt, or the sitemap. Do not advertise this route.
 const adminNav: AppLink[] = [
-  { label: 'Dashboard', href: '/admin', icon: 'home' },
-  { label: 'Users', href: '/admin/users', icon: 'users' },
-  { label: 'Products', href: '/admin/products', icon: 'package' },
-  { label: 'Plans', href: '/admin/plans', icon: 'credit-card' },
-  { label: 'Releases', href: '/admin/releases', icon: 'download' },
-  { label: 'FAQs', href: '/admin/faqs', icon: 'message' },
-  { label: 'Announcements', href: '/admin/announcements', icon: 'bell' },
-  { label: 'Site Content', href: '/admin/content', icon: 'edit' },
-  { label: 'Audit Log', href: '/admin/audit', icon: 'activity' },
+  { label: 'Dashboard', href: '/hq', icon: 'home' },
+  { label: 'Users', href: '/hq/users', icon: 'users' },
+  { label: 'Products', href: '/hq/products', icon: 'package' },
+  { label: 'Plans', href: '/hq/plans', icon: 'credit-card' },
+  { label: 'Releases', href: '/hq/releases', icon: 'download' },
+  { label: 'FAQs', href: '/hq/faqs', icon: 'message' },
+  { label: 'Announcements', href: '/hq/announcements', icon: 'bell' },
+  { label: 'Site Content', href: '/hq/content', icon: 'edit' },
+  { label: 'Audit Log', href: '/hq/audit', icon: 'activity' },
 ];
 ---
 

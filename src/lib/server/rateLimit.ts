@@ -1,19 +1,46 @@
 /**
- * Minimal in-memory rate limiter (development-grade).
+ * In-memory rate limiter (development-grade).
  *
- * Protects auth endpoints from obvious brute-force in dev. For production,
- * replace with a distributed limiter (Cloudflare Rate Limiting, KV-based
- * counters, or the provider's built-in protection) — this module is the
- * single integration point.
+ * Protects sensitive endpoints from brute-force and abuse. Buckets are
+ * configured per key prefix so different endpoints get appropriate limits.
+ *
+ * IMPORTANT: memory is per-isolate. On Cloudflare this limits each worker
+ * instance independently, which is still meaningful protection but not a hard
+ * global cap. For production hardening, pair this with Cloudflare Rate
+ * Limiting rules (dashboard → Security) or a KV/D1-backed counter — this
+ * module is the single integration point, so swapping the backend only
+ * touches `isRateLimited` / `recordHit`.
  */
 
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_HITS = 10;
+const DEFAULT_MAX = 10;
+const DEFAULT_WINDOW_MS = 15 * 60 * 1000;
+
+/** Per-bucket limits, keyed by the prefix before the first ':' in the key. */
+const BUCKETS: Record<string, { max: number; windowMs: number }> = {
+  // Authentication attempts (brute-force protection).
+  signin: { max: 10, windowMs: 15 * 60 * 1000 },
+  signup: { max: 5, windowMs: 60 * 60 * 1000 },
+  forgot: { max: 5, windowMs: 15 * 60 * 1000 },
+  reset: { max: 5, windowMs: 15 * 60 * 1000 },
+  support: { max: 5, windowMs: 15 * 60 * 1000 },
+  // OAuth callback abuse (each attempt does token validation work).
+  oauth: { max: 10, windowMs: 15 * 60 * 1000 },
+  // Admin API mutations.
+  admin: { max: 30, windowMs: 15 * 60 * 1000 },
+  // Release downloads.
+  download: { max: 30, windowMs: 15 * 60 * 1000 },
+};
 
 const buckets = new Map<string, number[]>();
 
+function configFor(key: string): { max: number; windowMs: number } {
+  const prefix = key.slice(0, key.indexOf(':') === -1 ? key.length : key.indexOf(':'));
+  return BUCKETS[prefix] ?? { max: DEFAULT_MAX, windowMs: DEFAULT_WINDOW_MS };
+}
+
 function prune(key: string, now: number): number[] {
-  const hits = (buckets.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
+  const { windowMs } = configFor(key);
+  const hits = (buckets.get(key) ?? []).filter((t) => now - t < windowMs);
   buckets.set(key, hits);
   return hits;
 }
@@ -21,7 +48,7 @@ function prune(key: string, now: number): number[] {
 export function isRateLimited(key: string): boolean {
   const now = Date.now();
   const hits = prune(key, now);
-  return hits.length >= MAX_HITS;
+  return hits.length >= configFor(key).max;
 }
 
 export function recordHit(key: string): void {
@@ -31,11 +58,17 @@ export function recordHit(key: string): void {
   // Opportunistic cleanup so the map doesn't grow unbounded.
   if (buckets.size > 5000) {
     for (const [k, hits] of buckets) {
-      if (hits.length === 0 || now - hits[hits.length - 1] > WINDOW_MS) buckets.delete(k);
+      if (hits.length === 0 || now - hits[hits.length - 1] > DEFAULT_WINDOW_MS) buckets.delete(k);
     }
   }
 }
 
+/** Best-effort client IP: Cloudflare sets cf-connecting-ip; dev falls back. */
 export function clientKey(request: Request): string {
-  return request.headers.get('cf-connecting-ip') ?? 'unknown';
+  const ip =
+    request.headers.get('cf-connecting-ip') ??
+    request.headers.get('x-real-ip') ??
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    'unknown';
+  return ip;
 }

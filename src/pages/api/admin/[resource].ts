@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { ApiError, fail, json, ok, readPayload, requireAdmin, requireSameOrigin } from '../../../lib/server/api';
 import { canManage, ROLE_RANK } from '../../../lib/server/auth';
 import { logAudit } from '../../../lib/server/activity';
+import { clientKey, isRateLimited } from '../../../lib/server/rateLimit';
 
 /**
  * Admin CRUD API.
@@ -34,6 +35,9 @@ function cleanArray(value: unknown): string[] {
 export const POST: APIRoute = async (ctx) => {
   try {
     requireSameOrigin(ctx);
+    if (isRateLimited(`admin:${clientKey(ctx.request)}`)) {
+      throw new ApiError(429, 'rate_limited', 'Too many requests. Please wait a few minutes.');
+    }
     const { user, store } = await requireAdmin(ctx);
     const resource = ctx.params.resource ?? '';
     if (!RESOURCES.includes(resource as never)) throw new ApiError(404, 'unknown_resource', 'Unknown admin resource.');

@@ -1,0 +1,206 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Icon from '../components/icons/Icon.astro';
+
+/**
+ * Styled "not allowed" page.
+ *
+ * Every unauthorized / unpermitted situation across the site funnels here:
+ * guards redirect with `?reason=...` and the download API does the same for
+ * browser clients. The reason is looked up in a whitelist below — arbitrary
+ * strings from the URL are never echoed back.
+ */
+
+interface Denial {
+  code: number;
+  icon: string;
+  title: string;
+  message: string;
+  actions: { label: string; href: string; primary?: boolean }[];
+}
+
+const reason = Astro.url.searchParams.get('reason') ?? '';
+const next = Astro.url.searchParams.get('next');
+const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next.slice(0, 300) : null;
+
+const denials: Record<string, Denial> = {
+  signin_required: {
+    code: 401,
+    icon: 'lock',
+    title: 'Sign in required',
+    message: 'You need to be signed in to access this. Sign in and you’ll return right where you left off.',
+    actions: [{ label: 'Sign in', href: `/auth/signin?next=${encodeURIComponent(safeNext ?? '/account')}`, primary: true }],
+  },
+  email_unverified: {
+    code: 403,
+    icon: 'mail',
+    title: 'Verify your email first',
+    message: 'This action requires a verified email address. Verify your address from account settings, then try again.',
+    actions: [{ label: 'Account settings', href: '/account/settings', primary: true }],
+  },
+  no_subscription: {
+    code: 403,
+    icon: 'credit-card',
+    title: 'Subscription required',
+    message: 'Downloads are available to active subscribers. Choose a plan to get access — your entitlement follows your account.',
+    actions: [{ label: 'View plans', href: '/products', primary: true }],
+  },
+  forbidden: {
+    code: 403,
+    icon: 'shield-check',
+    title: 'Not allowed',
+    message: 'You don’t have permission to view this page. If you believe this is a mistake, contact support.',
+    actions: [
+      { label: 'Go to your account', href: '/account' },
+      { label: 'Contact support', href: '/support' },
+    ],
+  },
+  suspended: {
+    code: 403,
+    icon: 'alert-triangle',
+    title: 'Account suspended',
+    message: 'This account is suspended, so access is restricted. Contact support if you believe this is a mistake.',
+    actions: [{ label: 'Contact support', href: '/support', primary: true }],
+  },
+  not_found: {
+    code: 404,
+    icon: 'file',
+    title: 'Not available',
+    message: 'This item doesn’t exist or isn’t available right now. It may have been removed or not published yet.',
+    actions: [
+      { label: 'Back to downloads', href: '/account/downloads' },
+      { label: 'Browse products', href: '/products' },
+    ],
+  },
+  not_configured: {
+    code: 503,
+    icon: 'settings',
+    title: 'Not set up yet',
+    message: 'This feature isn’t connected in this environment yet. Check back once the backend is live.',
+    actions: [{ label: 'Back to home', href: '/' }],
+  },
+};
+
+const denial = denials[reason] ?? {
+  code: 403,
+  icon: 'shield-check',
+  title: 'Access denied',
+  message: 'You’re not allowed to do this. If you think this is a mistake, contact support.',
+  actions: [
+    { label: 'Back to home', href: '/' },
+    { label: 'Contact support', href: '/support' },
+  ],
+} satisfies Denial;
+---
+
+<MarketingLayout title={denial.title} description="You don't have access to this page." noindex>
+  <section class="denied-wrap">
+    <div class="denied-card card">
+      <div class="denied-code mono" aria-hidden="true">{denial.code}</div>
+
+      <div class="denied-icon" aria-hidden="true"><Icon name={denial.icon} size={22} /></div>
+
+      <h1>{denial.title}</h1>
+      <p class="denied-msg">{denial.message}</p>
+
+      {safeNext && reason === 'signin_required' && (
+        <p class="denied-target mono">
+          <Icon name="arrow-right" size={13} />
+          {safeNext}
+        </p>
+      )}
+
+      <div class="denied-actions">
+        {denial.actions.map((a) => (
+          <a class={`btn ${a.primary ? 'btn--primary' : 'btn--secondary'}`} href={a.href}>
+            {a.label}
+            {a.primary && <Icon name="arrow-right" size={15} />}
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .denied-wrap {
+    display: grid;
+    place-items: center;
+    padding: clamp(48px, 10vw, 104px) 20px;
+  }
+  .denied-card {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    padding: clamp(28px, 5vw, 44px);
+    text-align: center;
+    overflow: hidden;
+  }
+  .denied-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.55;
+  }
+  .denied-code {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    color: var(--text-faint);
+  }
+  .denied-icon {
+    width: 46px;
+    height: 46px;
+    margin: 0 auto 18px;
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+  }
+  .denied-card h1 {
+    font-size: 1.6rem;
+    margin-bottom: 10px;
+  }
+  .denied-msg {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .denied-target {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 16px auto 0;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-inset);
+    color: var(--text-faint);
+    font-size: 0.74rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .denied-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 26px;
+  }
+  .denied-actions .btn {
+    flex: 0 1 auto;
+    min-width: 150px;
+  }
+  @media (max-width: 400px) {
+    .denied-actions .btn { width: 100%; }
+  }
+</style>

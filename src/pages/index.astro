@@ -35,16 +35,18 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
   <!-- Hero -->
   <section class="hero">
     <div class="container">
-      <picture class="hero-logo">
-        <source srcset={site.logo.src} type="image/webp" />
-        <img
-          src={site.logo.srcFallback}
-          width={680}
-          height={283}
-          alt={site.logo.alt}
-          fetchpriority="high"
-        />
-      </picture>
+      <div class="hero-logo">
+        <picture class="hero-logo__media">
+          <source srcset={site.logo.src} type="image/webp" />
+          <img
+            src={site.logo.srcFallback}
+            width={680}
+            height={283}
+            alt={site.logo.alt}
+            fetchpriority="high"
+          />
+        </picture>
+      </div>
       <h1 data-parallax data-depth="3">Built for players who<br />demand control.</h1>
       <p class="hero-sub" data-parallax data-depth="2">
         A premium Minecraft client focused on performance, precise customization, and a
@@ -54,10 +56,10 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
         <a class="btn btn--primary btn--lg" href="/products">Get Zenith</a>
         <a class="btn btn--secondary btn--lg" href="/features">Explore Features</a>
       </div>
-      <div class="hero-spec" data-parallax data-depth="1" aria-label="Product details">
+      <div class="hero-spec" aria-label="Product details">
         <span>v{product.currentVersion}</span>
         <span class="hs-sep" aria-hidden="true">/</span>
-        <span>MC {product.minecraftVersions[0]} – {product.minecraftVersions[product.minecraftVersions.length - 1]}</span>
+        <span>MC {product.minecraftVersions[0] ?? '1.8.9'} – {product.minecraftVersions[product.minecraftVersions.length - 1] ?? 'latest'}</span>
         <span class="hs-sep" aria-hidden="true">/</span>
         <span>profile sync</span>
         <span class="hs-sep" aria-hidden="true">/</span>
@@ -103,7 +105,7 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
   <section class="section" data-reveal>
     <div class="container">
       <div class="section-head section-head--center">
-        <span class="eyebrow" style="justify-content: center;">Pricing</span>
+        <span class="eyebrow eyebrow--center">Pricing</span>
         <h2>Simple plans. No strings.</h2>
         <p>Monthly, yearly, or a one-time lifetime purchase — your entitlement follows your account.</p>
       </div>
@@ -137,9 +139,9 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
         <p>A modular feature set organized by category, each configurable and profile-aware.</p>
       </div>
       <div class="grid grid--3">
-        {featurePreview.map((f) => (
-          <div class="card card--hover feature-card">
-            <div class="feature-icon"><Icon name={f.icon} size={20} /></div>
+        {featurePreview.map((f, i) => (
+          <div class:list={['card card--hover feature-card', i === 0 && 'feature-card--lead']}>
+            <div class="feature-icon"><Icon name={f.icon} size={i === 0 ? 22 : 20} /></div>
             <h3>{f.name}</h3>
             <p>{f.description}</p>
           </div>
@@ -184,7 +186,7 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
   <section class="section section--soft" data-reveal>
     <div class="container">
       <div class="section-head section-head--center">
-        <span class="eyebrow" style="justify-content: center;">FAQ</span>
+        <span class="eyebrow eyebrow--center">FAQ</span>
         <h2>Questions, answered.</h2>
       </div>
       <div class="container--narrow" style="margin-inline: auto;">

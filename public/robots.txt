@@ -1,8 +1,10 @@
 User-agent: *
 Allow: /
 Disallow: /account/
-Disallow: /admin/
 Disallow: /api/
 Disallow: /checkout/
+
+# Private areas are intentionally not listed here — never advertise them in
+# this file. Access is enforced server-side regardless.
 
 Sitemap: https://zenith.pages.dev/sitemap-index.xml

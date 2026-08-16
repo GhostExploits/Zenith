@@ -22,7 +22,7 @@ const path = Astro.url.pathname;
 
 function isCurrent(href: string): boolean {
   if (href === '/account') return path === '/account';
-  if (href === '/admin') return path === '/admin';
+  if (href === '/hq') return path === '/hq';
   return path.startsWith(href);
 }
 ---

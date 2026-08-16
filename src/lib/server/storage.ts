@@ -6,14 +6,19 @@
  * (gitignored); production should use Cloudflare R2 with signed URLs, wired
  * through this interface.
  */
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export interface StoredAsset {
   filename: string;
   sizeBytes: number;
-  stream: NodeJS.ReadableStream;
+  /**
+   * Asset bytes, ready to serve. Dev files are small placeholders so this is
+   * buffered; a real production backend should stream from R2 or redirect to
+   * a short-lived signed URL instead of buffering large jars.
+   */
+  data: Uint8Array;
 }
 
 /** Lazy storage path — computed only inside the dev-only method below. */
@@ -35,5 +40,5 @@ export async function getStoredAsset(releaseId: string, filename: string): Promi
   const filePath = join(storageDir(), releaseId.replace(/[^a-zA-Z0-9._-]/g, '_'), safeName);
   if (!existsSync(filePath)) return null;
   const stat = statSync(filePath);
-  return { filename: safeName, sizeBytes: stat.size, stream: createReadStream(filePath) };
+  return { filename: safeName, sizeBytes: stat.size, data: readFileSync(filePath) };
 }

@@ -35,6 +35,12 @@ const errors: Record<string, string> = {
 
       {reset && <div class="form-success"><Icon name="check" size={16} /> Password updated — sign in with your new password.</div>}
       {error && errors[error] && <div class="form-error"><Icon name="alert-triangle" size={16} /> {errors[error]}</div>}
+      {!error && next !== '/account' && (
+        <div class="alert alert--info" style="margin-bottom: 18px;">
+          <Icon name="lock" size={16} />
+          <span>Sign in to continue — you’ll be sent back to <span class="mono" style="color: var(--text);">{next}</span> after you’re in.</span>
+        </div>
+      )}
 
       <GoogleButton />
 

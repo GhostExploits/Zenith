@@ -30,12 +30,15 @@ const columns = [
   },
 ];
 
+// Placeholder links ([BRACKETED]) are not real destinations yet — they are
+// never rendered as broken links. Set real URLs in src/config/site.ts or
+// Admin → Site Content once they exist.
 const socials = [
   { name: 'discord', href: site.links.discord, label: 'Discord' },
   { name: 'twitter', href: site.links.twitter, label: 'X / Twitter' },
   { name: 'youtube', href: site.links.youtube, label: 'YouTube' },
   { name: 'github', href: site.links.github, label: 'GitHub' },
-];
+].filter((s) => s.href && !s.href.startsWith('['));
 ---
 
 <footer class="site-footer">
@@ -59,13 +62,15 @@ const socials = [
 
     <div class="footer-bottom">
       <span>© {year} {site.name}. Not affiliated with Mojang Studios or Microsoft.</span>
-      <div class="footer-socials">
-        {socials.map((s) => (
-          <a class="social-btn" href={s.href} aria-label={s.label} target={s.href.startsWith('[') ? undefined : '_blank'} rel="noreferrer">
-            <Icon name={s.name} size={18} />
-          </a>
-        ))}
-      </div>
+      {socials.length > 0 && (
+        <div class="footer-socials">
+          {socials.map((s) => (
+            <a class="social-btn" href={s.href} aria-label={s.label} target="_blank" rel="noreferrer">
+              <Icon name={s.name} size={18} />
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   </div>
 </footer>
