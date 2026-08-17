@@ -2,6 +2,7 @@
 import MarketingLayout from '../../layouts/MarketingLayout.astro';
 import Icon from '../../components/icons/Icon.astro';
 import { getProduct, getPlansForProduct, getReleasesForProduct, getPublishedFaqs } from '../../lib/server/catalog';
+import { tierColor } from '../../content/plans';
 import { mediaForProduct } from '../../content/media';
 import { isPaymentsConfigured } from '../../lib/server/payments';
 import { formatPrice, intervalLabel, formatDate } from '../../lib/format';
@@ -151,9 +152,14 @@ const availabilityLabel =
           </p>
           <div class="stack" style="gap: 12px;">
             {plans.map((plan) => (
-              <a class={`plan-row ${plan.highlighted ? 'plan-row--hl' : ''}`} href={`/checkout/${plan.id}`}>
+              <a
+                class={`plan-row ${plan.highlighted ? 'plan-row--hl' : ''}`}
+                data-pay
+                href={`/checkout/${plan.id}`}
+                style={{ '--tier': tierColor(plan.tier) }}
+              >
                 <div>
-                  <div class="plan-row-name">{plan.name} {plan.highlighted && <span class="badge badge--accent">Best value</span>}</div>
+                  <div class="plan-row-name"><span class="plan-metal" aria-hidden="true"></span>{plan.name} {plan.highlighted && <span class="badge badge--accent">Best value</span>}</div>
                   <div class="faint small">{plan.description}</div>
                 </div>
                 <div class="plan-row-price">
@@ -247,6 +253,14 @@ const availabilityLabel =
   .plan-row:hover { border-color: var(--border-strong); background: rgba(255, 255, 255, 0.03); }
   .plan-row--hl { border-color: rgba(233, 182, 74, 0.4); background: var(--accent-soft); }
   .plan-row-name { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .plan-metal {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--tier);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--tier) 55%, transparent);
+    flex-shrink: 0;
+  }
   .plan-row-price { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; white-space: nowrap; }
   .plan-row-price span { font-family: var(--font-body); font-weight: 500; margin-left: 4px; }
   @media (max-width: 980px) {

@@ -17,26 +17,39 @@ compatibility_flags = ["nodejs_compat"]
 # ---------------------------------------------------------------------------
 # Bindings
 # ---------------------------------------------------------------------------
-# Production backend bindings. BEFORE your first deploy, create the D1
-# database and the R2 bucket in the Cloudflare dashboard and replace the
-# placeholders below (see DEPLOY.md → Step 5). The build fails until
-# database_id is a real database — that is deliberate: it forces the setup
-# step that the backend needs.
+# The D1 + R2 bindings are COMMENTED OUT so the Pages build always passes and
+# the public site deploys. Without a real database_id, the build fails with a
+# "could not find D1 database" error — that placeholder existed before the
+# first deploy and is why builds were failing.
+#
+# While unbound, the site runs in a clean "not configured" mode: the public
+# pages, store, pricing, and credits all work; sign-up / sign-in / admin
+# return a clear "database not configured" message.
+#
+# TO ENABLE THE BACKEND (one-time, ~2 minutes, Cloudflare dashboard on your
+# phone):
+#   1. Workers & Pages → D1 → Create database → name it `zenith` → copy the
+#      database_id.
+#   2. Uncomment the [[d1_databases]] block below and paste that ID.
+#   3. Workers & Pages → R2 → Create bucket → name it `zenith-releases`,
+#      then uncomment the [[r2_buckets]] block.
+#   4. Commit + push — the build passes and the backend turns on. The D1 store
+#      auto-seeds the catalog and admin account from ADMIN_EMAIL / ADMIN_PASSWORD.
 
 # Database (production store). Create it with:
 #   wrangler d1 create zenith
 # then paste the returned database_id here.
-[[d1_databases]]
-binding = "DB"
-database_name = "zenith"
-database_id = "YOUR_D1_DATABASE_ID"
-migrations_dir = "migrations"
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "zenith"
+# database_id = "YOUR_D1_DATABASE_ID"
+# migrations_dir = "migrations"
 
 # Private release storage (protected downloads). Create the bucket with:
 #   wrangler r2 bucket create zenith-releases
-[[r2_buckets]]
-binding = "STORAGE"
-bucket_name = "zenith-releases"
+# [[r2_buckets]]
+# binding = "STORAGE"
+# bucket_name = "zenith-releases"
 
 # Zenith does NOT use Astro's built-in session feature (auth sessions live in
 # the application database via src/lib/server/store.ts), so no KV namespace is

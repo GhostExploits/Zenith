@@ -45,6 +45,7 @@ export const site = {
       { label: 'Changelog', href: '/changelog' },
       { label: 'Support', href: '/support' },
       { label: 'Community', href: '/community' },
+      { label: 'Credits', href: '/credits' },
     ],
     legal: [
       { label: 'Terms of Service', href: '/legal/terms' },

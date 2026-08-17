@@ -51,6 +51,8 @@
   --blue-soft: rgba(137, 169, 230, 0.09);
   --violet: #ab90e2;
   --violet-soft: rgba(171, 144, 226, 0.09);
+  --amber: #e9b64a;
+  --amber-soft: rgba(233, 182, 74, 0.09);
 
   /* --- Type -------------------------------------------------------------- */
   --font-display: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;

@@ -2,8 +2,10 @@
 import BaseLayout from './BaseLayout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import PaymentMaintenanceModal from '../components/PaymentMaintenanceModal.astro';
 import { getSessionUser } from '../lib/server/auth';
 import { getStore } from '../lib/server/store';
+import { isPaymentsConfigured } from '../lib/server/payments';
 
 interface Props {
   title?: string;
@@ -30,4 +32,5 @@ try {
   <Header user={user} />
   <slot />
   <Footer />
+  <PaymentMaintenanceModal active={!isPaymentsConfigured()} />
 </BaseLayout>

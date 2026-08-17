@@ -49,25 +49,32 @@ Node version: the repo pins Node 22 (`.nvmrc`), which the toolchain needs.
 
 ## Step 3 — Create the database and storage (required for the backend)
 
+> **Current state:** the `[[d1_databases]]` / `[[r2_buckets]]` bindings in
+> `wrangler.toml` are **commented out** so the site always builds and deploys.
+> Until you do this step, the public site (store, pricing, credits, download
+> pages) works fully, but sign-up/sign-in/admin return a clean "database not
+> configured" message. Do this step to turn the backend on.
+
 The backend needs two Cloudflare resources. Create them once; the app reads
-them through the bindings already declared in `wrangler.toml`.
+them through the bindings declared in `wrangler.toml`.
 
 ```bash
 # 1. Database (D1)
 npm run db:create          # prints a database_id
 ```
-Paste the printed `database_id` into `wrangler.toml` (the `[[d1_databases]]`
-block — replace `YOUR_D1_DATABASE_ID`). Then:
+Paste the printed `database_id` into `wrangler.toml` (uncomment the
+`[[d1_databases]]` block and replace `YOUR_D1_DATABASE_ID`). Then:
 
 ```bash
 npm run db:migrate         # creates the store table in the remote database
 npm run r2:create          # creates the private release bucket (R2)
 ```
 
+Then uncomment the `[[r2_buckets]]` block in `wrangler.toml` as well.
+
 Or do all three from the dashboard: **Workers & Pages → D1 → Create database**
 (name it `zenith`), **R2 → Create bucket** (name it `zenith-releases`), then
-set the `database_id` in `wrangler.toml`. The build fails until the ID is
-real — that's deliberate, so the setup can't be skipped by accident.
+uncomment the bindings and set the `database_id` in `wrangler.toml`.
 
 > First request to the database seeds it: the product catalog and your owner
 > account (from `ADMIN_EMAIL` / `ADMIN_PASSWORD`). No demo data is ever

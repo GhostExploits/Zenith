@@ -434,9 +434,14 @@ license kicks the client immediately; extending adds days to its expiry.
 The panel reads and writes the production database, so it only works after the
 backend is live. You need, once (details in [`DEPLOY.md`](DEPLOY.md)):
 
+> Right now the D1/R2 bindings in `wrangler.toml` are **commented out** on
+> purpose — the site builds and deploys without them, and sign-up/sign-in/
+> admin show a clean "database not configured" message until you do this step.
+
 1. **Cloudflare D1** database created + `database_id` in `wrangler.toml`
-   (`npm run db:create` → `npm run db:migrate`), and the **R2** release bucket
-   (`npm run r2:create`).
+   (uncomment the `[[d1_databases]]` block, then `npm run db:migrate`), and
+   the **R2** release bucket (`npm run r2:create`, then uncomment the
+   `[[r2_buckets]]` block).
 2. **Secrets** in the Cloudflare dashboard: `AUTH_SECRET`, `ADMIN_EMAIL`
    (your email — this is what makes *you* the owner), `ADMIN_PASSWORD`,
    `LICENSE_SIGNING_KEY` + `LICENSE_SIGNING_PUBLIC_KEY`, and the Google/Paddle

@@ -3,7 +3,7 @@ import MarketingLayout from '../layouts/MarketingLayout.astro';
 import Icon from '../components/icons/Icon.astro';
 import { site } from '../config/site';
 import { products } from '../content/products';
-import { plansForProduct } from '../content/plans';
+import { plansForProduct, tierColor } from '../content/plans';
 import { releasesForProduct } from '../content/changelog';
 import { faqs } from '../content/faq';
 import { formatDate, formatPrice, intervalLabel } from '../lib/format';
@@ -108,12 +108,16 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
       <div class="section-head section-head--center">
         <span class="eyebrow eyebrow--center">Pricing</span>
         <h2>Pick your tier. Stay ahead.</h2>
-        <p>Four tiers — from flexible monthly access to a permanent license. Your purchase is applied to your account automatically and instantly.</p>
+        <p>Every tier unlocks the full client — all modules, all features. Tiers set how long your license lasts, and every license is bound to one PC.</p>
       </div>
       <div class="grid grid--4">
         {plans.map((plan) => (
-          <div class={`card plan-card ${plan.highlighted ? 'plan-card--highlight' : ''}`}>
+          <div
+            class={`card plan-card ${plan.highlighted ? 'plan-card--highlight' : ''}`}
+            style={{ '--tier': tierColor(plan.tier) }}
+          >
             <div class="plan-name">
+              <span class="plan-metal" aria-hidden="true"></span>
               {plan.name}
               {plan.highlighted && <span class="badge badge--accent">Best value</span>}
             </div>
@@ -121,12 +125,15 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
               {formatPrice(plan.priceCents, plan.currency)}<small>{intervalLabel(plan.interval)}</small>
             </div>
             <p class="plan-desc">{plan.description}</p>
+            <ul>
+              {plan.features.map((f) => <li>{f}</li>)}
+            </ul>
             <div class="plan-license">
               {plan.licenseMode === 'permanent'
                 ? <><Icon name="key" size={14} /> Permanent license</>
                 : <><Icon name="refresh" size={14} /> Valid while subscribed</>}
             </div>
-            <a class="btn btn--secondary" href={`/checkout/${plan.id}`}>Choose {plan.name}</a>
+            <a class="btn btn--secondary" data-pay href={`/checkout/${plan.id}`}>Choose {plan.name}</a>
           </div>
         ))}
       </div>
@@ -327,6 +334,16 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
     margin-bottom: 16px;
   }
   .plan-license svg { color: var(--accent); flex-shrink: 0; }
+
+  /* One quiet mark in the tier's metal color — the tiers are literally metals. */
+  .plan-metal {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--tier);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--tier) 55%, transparent);
+    flex-shrink: 0;
+  }
 
   .community-cta {
     display: flex;

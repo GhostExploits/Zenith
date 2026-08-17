@@ -1,0 +1,271 @@
+---
+import { site } from '../config/site';
+
+interface Props {
+  /**
+   * Intercept buy/choose-tier clicks with the maintenance dialog. The server
+   * renders this false when PAYMENTS_ENABLED=true — no code change needed to
+   * go live, buy buttons simply navigate to checkout again.
+   */
+  active?: boolean;
+}
+
+const { active = true } = Astro.props;
+const aspect = site.logo.width / site.logo.height;
+const logoWidth = Math.round(176 * aspect);
+---
+
+<!--
+  Payment maintenance dialog. Shown when a visitor taps any [data-pay]
+  control while payments are disabled. This is the single bold moment on the
+  public site: an official Zenith store notice — logo, paused status, and a
+  calm explanation — not a generic browser alert.
+-->
+<div
+  class="pay-modal"
+  data-pay-modal
+  data-active={active ? 'true' : 'false'}
+  hidden
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="pay-modal-title"
+>
+  <div class="pay-modal__backdrop" data-pay-close></div>
+  <div class="pay-modal__card">
+    <button type="button" class="pay-modal__x" data-pay-close aria-label="Close dialog">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+      </svg>
+    </button>
+
+    <img
+      class="pay-modal__logo"
+      src={site.logo.srcFallback}
+      alt={site.logo.alt}
+      width={logoWidth}
+      height={176}
+      loading="eager"
+      decoding="async"
+      style={{ width: `${logoWidth}px`, height: 'auto' }}
+    />
+
+    <span class="pay-modal__status">
+      <span class="pay-modal__dot" aria-hidden="true"></span>
+      Store status — payments paused
+    </span>
+
+    <h2 id="pay-modal-title">Payments are under maintenance</h2>
+    <p class="pay-modal__body">
+      Checkout is temporarily switched off while Zenith's payment system is
+      being finalized. You can still create an account and browse the store —
+      no payment details are collected, and nothing on this page can charge
+      you.
+    </p>
+    <p class="pay-modal__foot">Payments resume soon. Check back.</p>
+
+    <button type="button" class="btn btn--primary btn--block" data-pay-close>Got it</button>
+  </div>
+</div>
+
+<style>
+  .pay-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+  }
+
+  .pay-modal[hidden] {
+    display: none;
+  }
+
+  .pay-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-overlay);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: pay-fade 200ms var(--ease);
+  }
+
+  .pay-modal__card {
+    position: relative;
+    width: min(440px, 94vw);
+    background:
+      radial-gradient(90% 60% at 50% 0%, rgba(255, 255, 255, 0.035), transparent 70%),
+      var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xl);
+    padding: clamp(28px, 6vw, 40px) clamp(24px, 6vw, 36px) 30px;
+    text-align: center;
+    box-shadow: var(--shadow-lg);
+    animation: pay-in 260ms var(--ease);
+  }
+
+  /* One amber hairline across the top — the store is paused, not broken. */
+  .pay-modal__card::before {
+    content: '';
+    position: absolute;
+    inset: -1px 18% auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--amber), transparent);
+    opacity: 0.7;
+  }
+
+  .pay-modal__x {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--text-faint);
+    cursor: pointer;
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+
+  .pay-modal__x:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--border-strong);
+  }
+
+  .pay-modal__logo {
+    margin: 0 auto 22px;
+    display: block;
+    filter: drop-shadow(0 6px 22px rgba(0, 0, 0, 0.45));
+  }
+
+  .pay-modal__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 14px;
+  }
+
+  /* The signature mark: a slow, quiet pulse — the store is sleeping, not gone. */
+  .pay-modal__dot {
+    position: relative;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--amber);
+  }
+
+  .pay-modal__dot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1px solid var(--amber);
+    opacity: 0;
+    animation: pay-pulse 2.4s var(--ease) infinite;
+  }
+
+  .pay-modal__card h2 {
+    font-size: 1.5rem;
+    margin: 0 0 12px;
+    letter-spacing: -0.02em;
+  }
+
+  .pay-modal__body {
+    color: var(--text-dim);
+    font-size: 0.94rem;
+    line-height: 1.6;
+    margin: 0 auto;
+    max-width: 340px;
+  }
+
+  .pay-modal__foot {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    color: var(--amber);
+    margin: 18px 0 22px;
+  }
+
+  .pay-modal .btn {
+    width: 100%;
+  }
+
+  @keyframes pay-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes pay-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes pay-pulse {
+    0% { opacity: 0.55; transform: scale(0.6); }
+    70% { opacity: 0; transform: scale(1.6); }
+    100% { opacity: 0; transform: scale(1.6); }
+  }
+
+  /* Reduced motion is handled globally (durations forced to ~0), so the
+     dialog still appears instantly — just without the entrance animation. */
+</style>
+
+<script>
+  // Bundled module (CSP-safe): intercepts [data-pay] taps and shows the
+  // maintenance notice. When payments are re-enabled server-side, `active`
+  // becomes false and buy links navigate to checkout normally.
+  const modal = document.querySelector<HTMLElement>('[data-pay-modal]');
+  if (modal) {
+    const root = modal; // narrowed for the closures below
+    const active = root.dataset.active === 'true';
+    const closeBtns = [...root.querySelectorAll<HTMLElement>('[data-pay-close]')];
+    const focusTarget = root.querySelector<HTMLElement>('.pay-modal__x');
+    let lastFocused: HTMLElement | null = null;
+
+    function open() {
+      lastFocused = document.activeElement as HTMLElement | null;
+      root.hidden = false;
+      root.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      focusTarget?.focus();
+    }
+
+    function close() {
+      root.hidden = true;
+      root.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      lastFocused?.focus();
+    }
+
+    closeBtns.forEach((b) => b.addEventListener('click', close));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !root.hidden) close();
+    });
+
+    if (active) {
+      document.addEventListener('click', (e) => {
+        const trigger = (e.target as HTMLElement).closest<HTMLElement>('[data-pay]');
+        if (!trigger) return;
+        e.preventDefault();
+        open();
+      });
+    }
+  }
+</script>

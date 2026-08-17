@@ -61,7 +61,10 @@ const socials = [
     </div>
 
     <div class="footer-bottom">
-      <span>© {year} {site.name}. Not affiliated with Mojang Studios or Microsoft.</span>
+      <span>
+        © {year} {site.name}. Not affiliated with Mojang Studios or Microsoft.
+        {' '}Built by <a class="footer-credit" href="/credits">zach.cww</a>.
+      </span>
       {socials.length > 0 && (
         <div class="footer-socials">
           {socials.map((s) => (
@@ -74,3 +77,14 @@ const socials = [
     </div>
   </div>
 </footer>
+
+<style>
+  .footer-credit {
+    color: var(--text-dim);
+    font-weight: 600;
+    transition: color var(--dur) var(--ease);
+  }
+  .footer-credit:hover {
+    color: var(--text);
+  }
+</style>
