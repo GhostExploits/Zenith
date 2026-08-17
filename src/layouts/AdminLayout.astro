@@ -1,6 +1,8 @@
 ---
 import AppLayout, { type AppLink } from './AppLayout.astro';
 import type { User } from '../lib/types';
+import { getStore } from '../lib/server/store';
+import { unreadNotificationCount } from '../lib/server/notifications';
 
 interface Props {
   title: string;
@@ -12,16 +14,28 @@ const { title, description, user } = Astro.props;
 
 // The panel deliberately lives at a non-obvious path and is never linked from
 // public pages, robots.txt, or the sitemap. Do not advertise this route.
+let unread = 0;
+try {
+  const store = await getStore();
+  unread = unreadNotificationCount(store.db());
+} catch {
+  /* store unavailable */
+}
+
 const adminNav: AppLink[] = [
   { label: 'Dashboard', href: '/hq', icon: 'home' },
+  { label: 'Orders', href: '/hq/orders', icon: 'credit-card' },
+  { label: 'Licenses', href: '/hq/licenses', icon: 'key' },
   { label: 'Users', href: '/hq/users', icon: 'users' },
   { label: 'Products', href: '/hq/products', icon: 'package' },
-  { label: 'Plans', href: '/hq/plans', icon: 'credit-card' },
+  { label: 'Plans', href: '/hq/plans', icon: 'star' },
   { label: 'Releases', href: '/hq/releases', icon: 'download' },
   { label: 'FAQs', href: '/hq/faqs', icon: 'message' },
   { label: 'Announcements', href: '/hq/announcements', icon: 'bell' },
   { label: 'Site Content', href: '/hq/content', icon: 'edit' },
-  { label: 'Audit Log', href: '/hq/audit', icon: 'activity' },
+  { label: 'Notifications', href: '/hq/notifications', icon: 'activity', badge: unread },
+  { label: 'Audit Log', href: '/hq/audit', icon: 'refresh' },
+  { label: 'Setup Status', href: '/hq/status', icon: 'settings' },
 ];
 ---
 

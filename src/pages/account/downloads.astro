@@ -2,7 +2,7 @@
 import AppLayout, { type AppLink } from '../../layouts/AppLayout.astro';
 import Icon from '../../components/icons/Icon.astro';
 import { requireUser } from '../../lib/server/guard';
-import { subscribedProductIds } from '../../lib/server/entitlements';
+import { ownedProductIds } from '../../lib/server/entitlements';
 import { getProducts, getReleasesForProduct } from '../../lib/server/catalog';
 import { formatDate, formatBytes } from '../../lib/format';
 
@@ -19,16 +19,19 @@ const nav: AppLink[] = [
   { label: 'Settings', href: '/account/settings', icon: 'settings' },
 ];
 
-// Downloads are for active subscribers only — a lapsed subscription
-// immediately removes the product from this list.
-const subscribed = subscribedProductIds(db, user);
-const products = (await getProducts()).filter((p) => subscribed.includes(p.id));
+// Downloads are gated by entitlement: an active subscription OR a paid
+// permanent purchase (e.g. the Gold tier). A lapsed subscription immediately
+// removes the product from this list; a permanent license never lapses.
+const owned = ownedProductIds(db, user);
+const products = (await getProducts()).filter((p) => owned.includes(p.id));
 const filter = Astro.url.searchParams.get('product');
 
 const rows: { release: Awaited<ReturnType<typeof getReleasesForProduct>>[number]; product: (typeof products)[number] }[] = [];
 for (const p of products) {
   for (const r of await getReleasesForProduct(p.id)) {
     if (filter && r.productId !== filter) continue;
+    // Only releases with an attached build are downloadable.
+    if (!r.asset || r.asset.sizeBytes <= 0) continue;
     rows.push({ release: r, product: p });
   }
 }
@@ -39,7 +42,7 @@ rows.sort((a, b) => (a.release.date < b.release.date ? 1 : -1));
   <div class="app-main-header">
     <div>
       <h1>Downloads</h1>
-      <p>Releases for products you're subscribed to. Access is checked server-side on every download.</p>
+      <p>Releases for products you're entitled to. Access is checked server-side on every download.</p>
     </div>
   </div>
 
@@ -62,11 +65,11 @@ rows.sort((a, b) => (a.release.date < b.release.date ? 1 : -1));
         <div class="empty-icon"><Icon name="download" size={36} /></div>
         <h3>Nothing to download yet</h3>
         <p>
-          {subscribed.length === 0
-            ? 'Downloads are available to subscribers. Choose a plan to get access.'
-            : 'No public releases have been published for your subscribed products yet.'}
+          {owned.length === 0
+            ? 'Downloads are available with an active subscription or a permanent license. Choose a tier to get access.'
+            : 'No builds have been published for your entitled products yet.'}
         </p>
-        {subscribed.length === 0 && <a class="btn btn--primary mt-2" href="/products">View plans</a>}
+        {owned.length === 0 && <a class="btn btn--primary mt-2" href="/products">View plans</a>}
       </div>
     ) : (
       <div class="stack" style="gap: 14px;">
@@ -95,9 +98,38 @@ rows.sort((a, b) => (a.release.date < b.release.date ? 1 : -1));
     )
   }
 
+  <div class="card card--pad-lg mt-3">
+    <h2 class="sec-title">How to activate &amp; install</h2>
+    <ol class="guide-list">
+      <li>
+        <strong>Download the build</strong> — the zip contains the Zenith V2 client, the loader
+        (<span class="mono">vape_v4_rewrite.exe</span>), its native component, and a
+        <span class="mono">Launch Zenith V2.bat</span> shortcut.
+      </li>
+      <li>
+        <strong>Extract the zip</strong> to a folder — keep the <span class="mono">.exe</span> and
+        <span class="mono">.dll</span> next to each other.
+      </li>
+      <li>
+        <strong>Start the loader</strong> — double-click <span class="mono">Launch Zenith V2.bat</span> (it
+        connects to the official license server), or run <span class="mono">vape_v4_rewrite.exe</span> directly
+        with the environment variable <span class="mono">VAPE_ONLINE_BASE_URL=https://zenithv2.pages.dev</span> set.
+      </li>
+      <li>
+        <strong>Enter your license key</strong> from the account overview. The key binds to this PC — the same
+        key cannot be used on a second machine. Need to switch PCs?{' '}
+        <a class="link" href="/support">Contact support</a> to reset the binding.
+      </li>
+      <li>
+        <strong>Launch Minecraft and select the process</strong> in the loader to inject. Your tier is verified
+        automatically on every launch.
+      </li>
+    </ol>
+  </div>
+
   <div class="alert alert--info mt-3">
     <Icon name="info" size={18} />
-    <span>Downloads are verified on every request: signed-in session, active subscription, and release access rules are checked server-side before a file is sent.</span>
+    <span>Downloads are verified on every request: signed-in session, entitlement (active subscription or permanent license), and release access rules are checked server-side before a file is sent.</span>
   </div>
 </AppLayout>
 
@@ -107,6 +139,23 @@ rows.sort((a, b) => (a.release.date < b.release.date ? 1 : -1));
     font-weight: 700;
     color: var(--accent);
   }
+  .sec-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .guide-list {
+    margin: 0;
+    padding-left: 20px;
+    display: grid;
+    gap: 10px;
+    color: var(--text-dim);
+    font-size: 0.92rem;
+  }
+  .guide-list strong { color: var(--text); }
+  .mono { font-family: var(--font-mono); font-size: 0.85em; }
   .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .chip {
     padding: 6px 14px;

@@ -2,7 +2,22 @@ import type { APIRoute } from 'astro';
 import { ApiError, fail, json, ok, readPayload, requireAdmin, requireSameOrigin } from '../../../lib/server/api';
 import { canManage, ROLE_RANK } from '../../../lib/server/auth';
 import { logAudit } from '../../../lib/server/activity';
-import { clientKey, isRateLimited } from '../../../lib/server/rateLimit';
+import { clientKey, isRateLimited, recordHit } from '../../../lib/server/rateLimit';
+import {
+  buildManualLicense,
+  extendLicense,
+  reactivateLicense,
+  resetLicenseDevice,
+  revokeLicense,
+  setLicenseTier,
+  suspendLicense,
+} from '../../../lib/server/licenses';
+import { notify } from '../../../lib/server/notifications';
+import { putStoredAsset } from '../../../lib/server/storage';
+
+function toHex(buf: ArrayBuffer | Uint8Array): string {
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 /**
  * Admin CRUD API.
@@ -13,7 +28,7 @@ import { clientKey, isRateLimited } from '../../../lib/server/rateLimit';
  *
  * Resources: products | plans | releases | faqs | announcements | users | content
  */
-const RESOURCES = ['products', 'plans', 'releases', 'faqs', 'announcements', 'users', 'content'] as const;
+const RESOURCES = ['products', 'plans', 'releases', 'faqs', 'announcements', 'users', 'content', 'licenses', 'notifications'] as const;
 
 function cleanString(value: unknown, max = 500): string {
   return String(value ?? '').trim().slice(0, max);
@@ -36,8 +51,10 @@ export const POST: APIRoute = async (ctx) => {
   try {
     requireSameOrigin(ctx);
     if (isRateLimited(`admin:${clientKey(ctx.request)}`)) {
+      recordHit(`admin:${clientKey(ctx.request)}`);
       throw new ApiError(429, 'rate_limited', 'Too many requests. Please wait a few minutes.');
     }
+    recordHit(`admin:${clientKey(ctx.request)}`);
     const { user, store } = await requireAdmin(ctx);
     const resource = ctx.params.resource ?? '';
     if (!RESOURCES.includes(resource as never)) throw new ApiError(404, 'unknown_resource', 'Unknown admin resource.');
@@ -119,6 +136,10 @@ export const POST: APIRoute = async (ctx) => {
           throw new ApiError(400, 'validation', 'Price must be a positive number.');
         }
         const existing = action === 'update' ? db.plans.find((p) => p.id === id) : undefined;
+        const tierRaw = cleanString(data.tier, 10).toLowerCase();
+        if (!['bronze', 'silver', 'gold', 'diamond'].includes(tierRaw)) {
+          throw new ApiError(400, 'validation', 'Tier must be one of bronze, silver, gold, or diamond.');
+        }
         const plan = {
           id: existing?.id ?? `plan-${crypto.randomUUID()}`,
           productId,
@@ -130,6 +151,8 @@ export const POST: APIRoute = async (ctx) => {
           features: cleanArray(data.features),
           active: cleanBool(data.active),
           highlighted: cleanBool(data.highlighted),
+          licenseMode: (cleanString(data.licenseMode, 20) as 'permanent' | 'subscription-period') || 'subscription-period',
+          tier: tierRaw as 'bronze' | 'silver' | 'gold' | 'diamond',
         };
         await store.mutate((d) => {
           if (action === 'create') d.plans.push(plan);
@@ -153,6 +176,26 @@ export const POST: APIRoute = async (ctx) => {
         const title = cleanString(data.title, 120);
         if (!productId || !version || !title) throw new ApiError(400, 'validation', 'Product, version, and title are required.');
         const existing = action === 'update' ? db.releases.find((r) => r.id === id) : undefined;
+        const releaseId = existing?.id ?? `release-${crypto.randomUUID()}`;
+        // Optional attached file: when present (and R2 is bound), upload it to
+        // private storage and derive the asset metadata server-side.
+        let asset = {
+          filename: cleanString(data.assetFilename, 120) || `${version}.jar`,
+          sizeBytes: Number(data.assetSize) || 0,
+          sha256: cleanString(data.assetSha256, 100) || '[RELEASE_SHA256]',
+        };
+        const assetFile = data.assetFile;
+        if (assetFile instanceof File && assetFile.size > 0) {
+          const filename = assetFile.name.replace(/[^a-zA-Z0-9._-]/g, '_') || asset.filename;
+          const bytes = new Uint8Array(await assetFile.arrayBuffer());
+          const sha256 = toHex(await crypto.subtle.digest('SHA-256', bytes));
+          try {
+            await putStoredAsset(releaseId, filename, bytes, assetFile.type || 'application/octet-stream');
+          } catch {
+            throw new ApiError(503, 'storage_not_configured', 'Release storage (R2) is not configured for file uploads.');
+          }
+          asset = { filename, sizeBytes: bytes.byteLength, sha256 };
+        }
         let sections: { title: string; items: string[] }[] = [];
         if (Array.isArray(data.sections)) {
           sections = (data.sections as { title?: unknown; items?: unknown }[])
@@ -173,7 +216,7 @@ export const POST: APIRoute = async (ctx) => {
           sections = existing?.sections ?? [];
         }
         const release = {
-          id: existing?.id ?? `release-${crypto.randomUUID()}`,
+          id: releaseId,
           productId,
           version,
           title,
@@ -186,11 +229,7 @@ export const POST: APIRoute = async (ctx) => {
           sections,
           minecraftVersions: cleanArray(data.minecraftVersions),
           platforms: cleanArray(data.platforms),
-          asset: {
-            filename: cleanString(data.assetFilename, 120) || `${version}.jar`,
-            sizeBytes: Number(data.assetSize) || 0,
-            sha256: cleanString(data.assetSha256, 100) || '[RELEASE_SHA256]',
-          },
+          asset,
           requiresEntitlement: cleanBool(data.requiresEntitlement),
         };
         await store.mutate((d) => {
@@ -297,6 +336,101 @@ export const POST: APIRoute = async (ctx) => {
         return ok();
       }
       throw new ApiError(400, 'bad_action', 'Unknown user action.');
+    }
+
+    // ---- licenses ----------------------------------------------------------
+    if (resource === 'licenses') {
+      if (action === 'create') {
+        const email = cleanString(data.email, 200).toLowerCase();
+        const planId = cleanString(data.planId, 80);
+        const target = db.users.find((u) => u.email === email);
+        if (!target) throw new ApiError(404, 'user_not_found', 'No account has that email.');
+        const plan = db.plans.find((p) => p.id === planId);
+        if (!plan) throw new ApiError(404, 'plan_not_found', 'Plan not found.');
+        const expiresAtRaw = cleanString(data.expiresAt, 30);
+        // Build + sign the entitlement BEFORE the write (signing is async and
+        // store.mutate callbacks are synchronous).
+        const license = await buildManualLicense(db, target, plan, {
+          expiresAt: expiresAtRaw ? new Date(expiresAtRaw).toISOString() : undefined,
+          notes: cleanString(data.notes, 300) || undefined,
+        });
+        await store.mutate((d) => {
+          d.licenses.push(license);
+        });
+        await notify(store, 'license', 'License issued', `${target.email} — ${plan.name} (${license.key}).`);
+        await logAudit(store, user, 'create', 'license', `${target.email} — ${plan.name} (${license.key})`, ctx.request);
+        return json({ ok: true, key: license.key });
+      }
+      const license = db.licenses.find((l) => l.id === id);
+      if (!license) throw new ApiError(404, 'not_found', 'License not found.');
+      if (action === 'revoke') {
+        await store.mutate((d) => revokeLicense(d, id, 'Revoked from admin panel'));
+        await notify(store, 'license', 'License revoked', `${license.key} (${license.tier}) was revoked by ${user.email}.`);
+        await logAudit(store, user, 'revoke', 'license', license.key, ctx.request);
+        return ok();
+      }
+      if (action === 'reactivate') {
+        await store.mutate((d) => reactivateLicense(d, id));
+        await logAudit(store, user, 'reactivate', 'license', license.key, ctx.request);
+        return ok();
+      }
+      if (action === 'suspend') {
+        await store.mutate((d) => suspendLicense(d, id));
+        await logAudit(store, user, 'suspend', 'license', license.key, ctx.request);
+        return ok();
+      }
+      if (action === 'extend') {
+        const days = Math.round(Number(data.days));
+        if (!Number.isFinite(days) || days <= 0) throw new ApiError(400, 'validation', 'Extension days must be a positive number.');
+        const updated = await extendLicense(store, id, days);
+        if (!updated) throw new ApiError(404, 'not_found', 'License not found.');
+        await logAudit(store, user, 'extend', 'license', `${license.key} +${days}d`, ctx.request);
+        return ok();
+      }
+      if (action === 'set_tier') {
+        const updated = await setLicenseTier(store, id, cleanString(data.tier, 10));
+        if (!updated) throw new ApiError(400, 'validation', 'Tier must be one of bronze, silver, gold, or diamond.');
+        await notify(store, 'license', 'License tier changed', `${license.key} is now ${updated.tier}.`);
+        await logAudit(store, user, 'set_tier', 'license', `${license.key} → ${updated.tier}`, ctx.request);
+        return ok();
+      }
+      if (action === 'reset_device') {
+        await store.mutate((d) => resetLicenseDevice(d, id));
+        await notify(
+          store,
+          'license',
+          'Device binding reset',
+          `${license.key} was unbound from its device by ${user.email} — it can now be activated on another machine.`,
+        );
+        await logAudit(store, user, 'reset_device', 'license', license.key, ctx.request);
+        return ok();
+      }
+      if (action === 'delete') {
+        await store.mutate((d) => { d.licenses = d.licenses.filter((l) => l.id !== id); });
+        await logAudit(store, user, 'delete', 'license', license.key, ctx.request);
+        return ok();
+      }
+      throw new ApiError(400, 'bad_action', 'Unknown license action.');
+    }
+
+    // ---- notifications -----------------------------------------------------
+    if (resource === 'notifications') {
+      if (action === 'mark_read') {
+        await store.mutate((d) => {
+          if (id) {
+            const n = d.notifications.find((x) => x.id === id);
+            if (n) n.read = true;
+          } else {
+            d.notifications = d.notifications.map((n) => ({ ...n, read: true }));
+          }
+        });
+        return ok();
+      }
+      if (action === 'clear') {
+        await store.mutate((d) => { d.notifications = []; });
+        return ok();
+      }
+      throw new ApiError(400, 'bad_action', 'Unknown notification action.');
     }
 
     // ---- site content ------------------------------------------------------

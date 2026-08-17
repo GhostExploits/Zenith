@@ -3,7 +3,7 @@ import { ApiError, fail, redirectTo, requireStore } from '../../../../lib/server
 import { cookieAttributes, createSession } from '../../../../lib/server/auth';
 import { handleGoogleCallback, linkGoogleIdentity } from '../../../../lib/server/google';
 import { logActivity } from '../../../../lib/server/activity';
-import { clientKey, isRateLimited } from '../../../../lib/server/rateLimit';
+import { clientKey, isRateLimited, recordHit } from '../../../../lib/server/rateLimit';
 
 /**
  * Google OAuth callback.
@@ -15,8 +15,10 @@ import { clientKey, isRateLimited } from '../../../../lib/server/rateLimit';
 export const GET: APIRoute = async (ctx) => {
   try {
     if (isRateLimited(`oauth:${clientKey(ctx.request)}`)) {
+      recordHit(`oauth:${clientKey(ctx.request)}`);
       throw new ApiError(429, 'rate_limited', 'Too many attempts. Please wait a few minutes.');
     }
+    recordHit(`oauth:${clientKey(ctx.request)}`);
     const result = await handleGoogleCallback(ctx.request);
     const setCookie = [result.clearCookie];
 

@@ -5,6 +5,7 @@ import { getPlan, getProductById } from '../../lib/server/catalog';
 import { getStore } from '../../lib/server/store';
 import { getSessionUser } from '../../lib/server/auth';
 import { hasEntitlement } from '../../lib/server/entitlements';
+import { isPaymentsConfigured } from '../../lib/server/payments';
 import { formatPrice, intervalLabel } from '../../lib/format';
 
 const { planId } = Astro.params;
@@ -23,6 +24,7 @@ try {
 } catch {
   /* store unavailable — treat as guest */
 }
+const paymentsReady = isPaymentsConfigured();
 ---
 
 <MarketingLayout title={`Checkout — ${plan.name}`} description={`${plan.name} plan for ${product.name}.`} noindex>
@@ -69,27 +71,54 @@ try {
 
         <hr class="divider" />
 
+        <div class="license-note">
+          <Icon name="key" size={16} />
+          {plan.licenseMode === 'permanent'
+            ? <>This purchase includes a <strong>permanent license</strong> — it never expires.</>
+            : <>Your license stays valid while this subscription is active, and renews with each billing period.</>}
+        </div>
+
+        <hr class="divider" />
+
         {
           alreadyOwned ? (
             <div class="alert alert--green">
               <Icon name="shield-check" size={18} />
               You already hold an entitlement for {product.name}. Head to your dashboard to manage it.
             </div>
-          ) : (
+          ) : !user ? (
             <div class="alert alert--accent">
-              <Icon name="info" size={18} />
-              Payment processing is not connected yet. This checkout is an order summary only — once a
-              payment provider is integrated, completing this order will grant your entitlement.
+              <Icon name="user" size={18} />
+              Sign in to continue — your purchase and license will be attached to your account.
             </div>
-          )
+          ) : !paymentsReady ? (
+            <div class="alert alert--maintenance">
+              <Icon name="alert-triangle" size={18} />
+              <span>
+                <strong>Payments under maintenance.</strong>{' '}
+                Payments are temporarily unavailable while Zenith's payment system is being
+                finalized. Please check back soon.
+              </span>
+            </div>
+          ) : null
         }
 
         <div class="mt-2">
           {
             user ? (
-              <button class="btn btn--secondary btn--block btn--lg" type="button" disabled title="Payments are not configured yet.">
-                <Icon name="credit-card" size={18} /> Continue to payment — coming soon
-              </button>
+              alreadyOwned ? (
+                <a class="btn btn--secondary btn--block btn--lg" href="/account/products">
+                  Go to your dashboard
+                </a>
+              ) : (
+                <form method="post" action="/api/payments/checkout">
+                  <input type="hidden" name="planId" value={plan.id} />
+                  <button class="btn btn--primary btn--block btn--lg" type="submit" disabled={!paymentsReady}>
+                    <Icon name="lock" size={18} />
+                    {paymentsReady ? `Pay ${formatPrice(plan.priceCents, plan.currency)} — secure checkout` : 'Payments unavailable'}
+                  </button>
+                </form>
+              )
             ) : (
               <a class="btn btn--primary btn--block btn--lg" href={`/auth/signin?next=/checkout/${plan.id}`}>
                 Sign in to continue
@@ -98,7 +127,9 @@ try {
           }
         </div>
         <p class="faint small center mt-2" style="margin-bottom: 0;">
-          No payment is processed on this page. Entitlements are only granted by verified server events.
+          {paymentsReady
+            ? <>Checkout runs on a secure hosted payment page — card details never touch this site. Your license is granted automatically once the payment is confirmed.</>
+            : <>Nothing on this page can charge you while payments are under maintenance. No payment details are collected.</>}
         </p>
       </div>
     </div>
@@ -125,10 +156,26 @@ try {
     color: var(--text-dim);
     font-size: 0.94rem;
   }
-  .plan-check-list svg { color: var(--accent); }
+  .license-note {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+  .license-note svg { color: var(--accent); flex-shrink: 0; }
   .alert--green {
     border-color: rgba(92, 214, 138, 0.35);
     background: var(--green-soft);
     color: var(--green);
   }
+  .alert--maintenance {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-color: rgba(233, 182, 74, 0.4);
+    background: var(--accent-soft);
+    color: var(--amber);
+  }
+  .alert--maintenance svg { flex-shrink: 0; margin-top: 1px; }
 </style>

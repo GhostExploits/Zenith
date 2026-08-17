@@ -14,7 +14,7 @@ export const products: Product[] = [
     id: 'zenith-v2',
     name: 'Zenith V2',
     slug: 'zenith-v2',
-    tagline: 'The next generation of the Zenith client.',
+    tagline: 'Precision tools. Competitive advantage.',
     shortDescription:
       'A performance-focused Minecraft client with a modular, deeply customizable feature set — rebuilt from the ground up.',
     longDescription:
@@ -53,11 +53,11 @@ export const products: Product[] = [
     minecraftVersions: ['1.8.9', '1.12.2', '1.16.5', '1.21.x'],
     platforms: ['Windows 10/11', 'macOS (Intel & Apple Silicon)', 'Linux'],
     channel: 'beta',
-    currentVersion: '0.4.2-beta',
+    currentVersion: '4.21',
     availability: 'beta',
     featured: true,
     purchaseType: 'both',
-    planIds: ['zenith-v2-monthly', 'zenith-v2-yearly', 'zenith-v2-lifetime'],
+    planIds: ['zenith-bronze', 'zenith-silver', 'zenith-diamond', 'zenith-gold'],
     status: 'beta',
     downloadEnabled: true,
     specs: [

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { ApiError, fail, readPayload, redirectTo, requireSameOrigin, requireStore } from '../../../lib/server/api';
 import { hashPassword } from '../../../lib/server/auth';
-import { clientKey, isRateLimited } from '../../../lib/server/rateLimit';
+import { clientKey, isRateLimited, recordHit } from '../../../lib/server/rateLimit';
 import { logActivity } from '../../../lib/server/activity';
 import { consumeToken } from '../../../lib/server/tokens';
 
@@ -10,9 +10,11 @@ export const POST: APIRoute = async (ctx) => {
   try {
     requireSameOrigin(ctx);
     const store = await requireStore();
-    if (isRateLimited(`reset:${clientKey(ctx.request)}`)) {
+    const key = `reset:${clientKey(ctx.request)}`;
+    if (isRateLimited(key)) {
       throw new ApiError(429, 'rate_limited', 'Too many attempts. Please wait a few minutes.');
     }
+    recordHit(key);
 
     const payload = await readPayload(ctx);
     token = String(payload.token ?? '');

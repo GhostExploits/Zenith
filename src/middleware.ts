@@ -1,8 +1,12 @@
 /**
  * Global middleware: applies security headers to every response (HTML pages
- * and API), and keeps authenticated area indexes out of search engines.
+ * and API), keeps authenticated area indexes out of search engines, and
+ * captures the Cloudflare runtime bindings so the D1-backed store can stay
+ * fresh on every request.
  */
 import { defineMiddleware } from 'astro:middleware';
+import { setRuntimeEnv } from './lib/server/runtime';
+import { refreshStore } from './lib/server/store';
 
 const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
@@ -17,6 +21,14 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  // The Cloudflare adapter exposes bindings (D1/R2) on every request; make
+  // them available to domain code that has no Astro context.
+  const env = (context.locals as { runtime?: { env?: unknown } }).runtime?.env;
+  if (env) setRuntimeEnv(env);
+  // Keep the per-isolate database snapshot fresh before this request runs
+  // (no-op for the dev JSON store and unconfigured production).
+  await refreshStore();
+
   const response = await next();
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {

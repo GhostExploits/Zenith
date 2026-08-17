@@ -1550,7 +1550,7 @@ body::before {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 14px;
   margin-bottom: 28px;
 }
@@ -1577,6 +1577,186 @@ body::before {
 
 .stat-card .stat-icon {
   color: var(--accent);
+}
+
+/* ----------------------------------------------------------------------------
+   App shell — phone drawer + app bar
+   -------------------------------------------------------------------------- */
+/* Hidden by default; the drawer replaces the sidebar only on phones. */
+.app-mobilebar,
+.app-drawer,
+.app-drawer-backdrop {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  /* The horizontal tab strip (721–980px) gives way to a compact bar +
+     off-canvas drawer on phones. */
+  .app-sidebar { display: none; }
+
+  .app-mobilebar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: var(--header-h);
+    z-index: 40;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+  }
+
+  .app-mobilebar-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .app-mobilebar-title {
+    font-weight: 600;
+    font-size: 0.98rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .app-mobilebar-meta {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .app-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(5, 5, 8, 0.66);
+    backdrop-filter: blur(2px);
+    animation: drawer-fade 180ms var(--ease);
+  }
+
+  .app-drawer {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 95;
+    width: min(320px, 86vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-soft);
+    border-right: 1px solid var(--border-strong);
+    animation: drawer-in 220ms var(--ease);
+  }
+
+  .app-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 12px 12px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .app-drawer-brand {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.02rem;
+    letter-spacing: 0.02em;
+  }
+
+  .app-drawer-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    background: none;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+
+  .app-drawer-nav {
+    display: grid;
+    gap: 2px;
+    padding: 10px;
+    overflow-y: auto;
+  }
+
+  .app-drawer-link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 48px;
+    padding: 11px 14px;
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    font-size: 0.96rem;
+    font-weight: 500;
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+
+  .app-drawer-link:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .app-drawer-link[aria-current='page'] {
+    color: var(--text);
+    background: var(--accent-soft);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+  }
+
+  .app-drawer-foot {
+    margin-top: auto;
+    padding: 12px 14px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .app-drawer-site {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .app-drawer-site:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* The `hidden` attribute must win over the media-query display rules. */
+.app-drawer[hidden],
+.app-drawer-backdrop[hidden] {
+  display: none;
+}
+
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes drawer-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ----------------------------------------------------------------------------
@@ -1733,7 +1913,7 @@ body::before {
 
   /* Touch-first hit areas */
   .btn { height: 44px; }
-  .btn--sm { height: 38px; }
+  .btn--sm { height: 40px; }
   .nav-burger { width: 42px; height: 42px; }
   .social-btn { width: 42px; height: 42px; }
   .faq-q { padding-block: 16px; }
@@ -1742,6 +1922,40 @@ body::before {
   .plan-card { padding: 22px; }
   .product-card { padding: 20px; }
   .release-card { padding: 18px 20px; }
+
+  /* Page header stacks on phones; search + actions go full width */
+  .app-main-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .app-main-header > form,
+  .app-main-header > a.btn,
+  .app-main-header > div:not([class]) { width: 100%; }
+  .app-main-header form .input { width: 100% !important; }
+}
+
+/* Admin tables on phones: pin the identity column, scroll the rest */
+@media (max-width: 720px) {
+  .table-wrap {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .table th:first-child,
+  .table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--bg-raised);
+    border-right: 1px solid var(--border-strong);
+    box-shadow: 10px 0 14px -12px rgba(0, 0, 0, 0.7);
+  }
+  .table thead th:first-child {
+    background: var(--bg-raised);
+  }
+  .table tbody tr:hover td:first-child {
+    background: var(--bg-hover);
+  }
 }
 
 /* Small phones */

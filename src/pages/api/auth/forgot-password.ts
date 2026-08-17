@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { ApiError, fail, readPayload, redirectTo, requireSameOrigin, requireStore } from '../../../lib/server/api';
-import { clientKey, isRateLimited } from '../../../lib/server/rateLimit';
+import { clientKey, isRateLimited, recordHit } from '../../../lib/server/rateLimit';
 import { emailBaseUrl, passwordResetEmail, sendEmail } from '../../../lib/server/email';
 import { issueToken } from '../../../lib/server/tokens';
 
@@ -18,9 +18,11 @@ export const POST: APIRoute = async (ctx) => {
   try {
     requireSameOrigin(ctx);
     const store = await requireStore();
-    if (isRateLimited(`forgot:${clientKey(ctx.request)}`)) {
+    const key = `forgot:${clientKey(ctx.request)}`;
+    if (isRateLimited(key)) {
       throw new ApiError(429, 'rate_limited', 'Too many attempts. Please wait a few minutes.');
     }
+    recordHit(key);
 
     const { email } = await readPayload(ctx);
     const normalized = String(email ?? '').trim().toLowerCase();

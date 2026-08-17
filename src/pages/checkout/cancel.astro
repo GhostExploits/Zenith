@@ -1,0 +1,40 @@
+---
+import MarketingLayout from '../../layouts/MarketingLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+---
+
+<MarketingLayout
+  title="Payment cancelled"
+  description="Your Zenith payment was cancelled."
+  noindex
+>
+  <section class="section">
+    <div class="container container--narrow" style="text-align: center; padding-block: 6rem;">
+      <div class="big-x"><Icon name="alert-triangle" size={40} /></div>
+      <h1 style="font-size: 2rem; margin: 20px 0 8px;">Payment cancelled</h1>
+      <p class="muted" style="max-width: 520px; margin: 0 auto;">
+        No charge was made and nothing was granted. You can try again whenever
+        you're ready — the plan and price you chose are still waiting.
+      </p>
+      <div class="row center mt-3" style="gap: 10px; justify-content: center;">
+        <a class="btn btn--primary btn--lg" href="/products">
+          <Icon name="arrow-left" size={18} /> Back to products
+        </a>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .big-x {
+    width: 84px;
+    height: 84px;
+    margin: 0 auto;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--red-soft);
+    color: var(--red);
+    border: 1px solid rgba(244, 93, 93, 0.35);
+  }
+</style>

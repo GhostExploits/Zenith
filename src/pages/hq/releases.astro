@@ -100,7 +100,7 @@ const fArr = (key: string) => (release?.[key as keyof typeof release] as string[
 
   <div class="card card--pad-lg" id="form">
     <h2 class="sec-title">{isNew ? 'Create release' : `Edit — ${release?.version}`}</h2>
-    <form method="post" action="/api/admin/releases" style="max-width: 760px;">
+    <form method="post" action="/api/admin/releases" enctype="multipart/form-data" style="max-width: 760px;">
       <input type="hidden" name="action" value={action} />
       {!isNew && <input type="hidden" name="id" value={release!.id} />}
       <div class="grid grid--3">
@@ -154,6 +154,14 @@ const fArr = (key: string) => (release?.[key as keyof typeof release] as string[
           <label for="platforms">Platforms (comma-separated)</label>
           <input class="input" id="platforms" name="platforms" value={fArr('platforms').join(', ')} placeholder="Windows 10/11, macOS, Linux" />
         </div>
+      </div>
+      <div class="field">
+        <label for="assetFile">Upload release file (optional — stored privately in R2)</label>
+        <input class="input" id="assetFile" name="assetFile" type="file" accept=".jar,.zip" />
+        <p class="faint small" style="margin-top: 6px;">
+          Uploading a file stores it in private storage and fills in the filename, size, and SHA-256 automatically.
+          Skip it to keep the manual values below (e.g. for an existing release).
+        </p>
       </div>
       <div class="grid grid--3">
         <div class="field">

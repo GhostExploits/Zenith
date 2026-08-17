@@ -2,25 +2,42 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import Icon from '../../components/icons/Icon.astro';
 import { requireAdmin } from '../../lib/server/guard';
-import { formatRelative } from '../../lib/format';
+import { licenseEffectiveStatus } from '../../lib/server/licenses';
+import { formatPrice, formatRelative } from '../../lib/format';
 
 const session = await requireAdmin(Astro);
 if (session instanceof Response) return session;
 const { user, store } = session;
 const db = store.db();
 
-const activeSubs = db.subscriptions.filter((s) => s.status === 'active' && new Date(s.currentPeriodEnd).getTime() > Date.now());
-const recentPurchases = db.purchases.slice(-5).reverse();
-const recentAudit = db.audit.slice(-8).reverse();
+const now = Date.now();
+const activeSubs = db.subscriptions.filter(
+  (s) => s.status === 'active' && new Date(s.currentPeriodEnd).getTime() > now,
+);
+const paid = db.purchases.filter((p) => p.status === 'paid');
+const revenue = paid.reduce((sum, p) => sum + (p.amountCents ?? 0), 0);
+const activeLicenses = db.licenses.filter((l) => licenseEffectiveStatus(l) === 'active');
+const unread = db.notifications.filter((n) => !n.read).length;
+const failedPayments = db.purchases.filter((p) => p.status === 'failed').length;
 
 const stats = [
   { label: 'Total users', value: db.users.length, icon: 'users' },
-  { label: 'Active subscriptions', value: activeSubs.length, icon: 'credit-card' },
-  { label: 'Products', value: db.products.length, icon: 'package' },
-  { label: 'Published releases', value: db.releases.filter((r) => r.published).length, icon: 'download' },
-  { label: 'Support tickets', value: 0, icon: 'message' },
+  { label: 'Revenue (paid)', value: formatPrice(revenue, 'USD'), icon: 'credit-card' },
+  { label: 'Paid orders', value: paid.length, icon: 'check' },
+  { label: 'Active subscriptions', value: activeSubs.length, icon: 'star' },
+  { label: 'Active licenses', value: activeLicenses.length, icon: 'key' },
+  { label: 'Unread notifications', value: unread, icon: 'bell' },
+  { label: 'Failed payments', value: failedPayments, icon: 'alert-triangle' },
   { label: 'Audit events', value: db.audit.length, icon: 'activity' },
 ];
+
+const userEmail = (id: string) => db.users.find((u) => u.id === id)?.email ?? id;
+const planName = (id: string) => db.plans.find((p) => p.id === id)?.name ?? id;
+
+const recentPurchases = [...db.purchases].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, 6);
+const recentUsers = [...db.users].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, 5);
+const recentAudit = [...db.audit].slice(-8).reverse();
+const recentLicenses = [...db.licenses].sort((a, b) => (a.issuedAt < b.issuedAt ? 1 : -1)).slice(0, 5);
 ---
 
 <AdminLayout title="Admin dashboard" user={user}>
@@ -42,50 +59,92 @@ const stats = [
   </div>
 
   <div class="grid grid--2" style="align-items: start;">
-    <div>
-      <h2 class="sec-title">Recent admin activity</h2>
-      {
-        recentAudit.length === 0 ? (
-          <div class="card card--pad muted">No admin actions recorded yet.</div>
-        ) : (
-          <div class="card">
-            <ul class="plain-list">
-              {recentAudit.map((a) => (
-                <li>
-                  <span class="badge badge--accent" style="text-transform: none; letter-spacing: 0;">{a.action}</span>
-                  <span class="muted small">{a.resource}</span>
-                  <time class="faint small">{formatRelative(a.createdAt)}</time>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )
-      }
+    <div class="stack" style="gap: 24px;">
+      <div>
+        <h2 class="sec-title">Recent purchases</h2>
+        {
+          recentPurchases.length === 0 ? (
+            <div class="card card--pad muted">
+              No purchases yet — they appear here from verified payment events.
+            </div>
+          ) : (
+            <div class="card">
+              <ul class="plain-list">
+                {recentPurchases.map((p) => (
+                  <li>
+                    <span class="badge badge--accent" style="text-transform: none; letter-spacing: 0;">{p.status}</span>
+                    <span class="muted small">{userEmail(p.userId)}</span>
+                    <span class="muted small">{planName(p.planId)}</span>
+                    <span class="badge">{formatPrice(p.amountCents, p.currency)}</span>
+                    <time class="faint small">{formatRelative(p.createdAt)}</time>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+      </div>
+
+      <div>
+        <h2 class="sec-title">Newest accounts</h2>
+        <div class="card">
+          <ul class="plain-list">
+            {recentUsers.map((u) => (
+              <li>
+                <span class="badge badge--violet" style="text-transform: none; letter-spacing: 0;">{u.role}</span>
+                <span class="muted small">{u.email}</span>
+                <time class="faint small">{formatRelative(u.createdAt)}</time>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
 
-    <div>
-      <h2 class="sec-title">Recent purchases</h2>
-      {
-        recentPurchases.length === 0 ? (
-          <div class="card card--pad muted">
-            No purchases yet — payments aren't connected. Purchases appear here from verified provider events.
-          </div>
-        ) : (
-          <div class="card">
-            <ul class="plain-list">
-              {recentPurchases.map((p) => (
-                <li>
-                  <span class="muted small">{p.productId}</span>
-                  <span class="badge">{p.status}</span>
-                  <time class="faint small">{formatRelative(p.createdAt)}</time>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )
-      }
+    <div class="stack" style="gap: 24px;">
+      <div>
+        <h2 class="sec-title">Recent licenses</h2>
+        {
+          recentLicenses.length === 0 ? (
+            <div class="card card--pad muted">No licenses granted yet.</div>
+          ) : (
+            <div class="card">
+              <ul class="plain-list">
+                {recentLicenses.map((l) => (
+                  <li>
+                    <span class="badge badge--green badge--dot" style="text-transform: none; letter-spacing: 0;">{licenseEffectiveStatus(l)}</span>
+                    <span class="mono small" style="font-family: var(--font-mono);">{l.key}</span>
+                    <time class="faint small">{formatRelative(l.issuedAt)}</time>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+      </div>
 
-      <div class="alert alert--info mt-2">
+      <div>
+        <h2 class="sec-title">Recent admin activity</h2>
+        {
+          recentAudit.length === 0 ? (
+            <div class="card card--pad muted">No admin actions recorded yet.</div>
+          ) : (
+            <div class="card">
+              <ul class="plain-list">
+                {recentAudit.map((a) => (
+                  <li>
+                    <span class="badge badge--accent" style="text-transform: none; letter-spacing: 0;">{a.action}</span>
+                    <span class="muted small">{a.resource}</span>
+                    <time class="faint small">{formatRelative(a.createdAt)}</time>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+      </div>
+
+      <div class="alert alert--info">
         <Icon name="shield-check" size={18} />
         <span>Admin access is enforced server-side. Suspended users are signed out immediately; audit log tracks every change.</span>
       </div>
@@ -112,7 +171,9 @@ const stats = [
     gap: 12px;
     padding: 11px 18px;
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
   }
   .plain-list li:last-child { border-bottom: none; }
   .plain-list time { margin-left: auto; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
 </style>

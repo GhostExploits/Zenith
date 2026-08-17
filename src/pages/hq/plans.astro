@@ -106,6 +106,23 @@ const fArr = (key: string) => (plan?.[key as keyof typeof plan] as string[] | un
           <input class="input" id="currency" name="currency" maxlength="3" value={f('currency', 'USD')} />
         </div>
       </div>
+      <div class="grid grid--2">
+        <div class="field">
+          <label for="licenseMode">License granted on purchase *</label>
+          <select class="select" id="licenseMode" name="licenseMode" required>
+            <option value="subscription-period" selected={f('licenseMode') !== 'permanent'}>Subscription-period (valid while subscribed)</option>
+            <option value="permanent" selected={f('licenseMode') === 'permanent'}>Permanent (never expires)</option>
+          </select>
+          <p class="faint small" style="margin-top: 6px;">Permanent plans (e.g. Gold) issue non-expiring license keys.</p>
+        </div>
+        <div class="field">
+          <label for="tier">License tier *</label>
+          <select class="select" id="tier" name="tier" required>
+            {['bronze', 'silver', 'gold', 'diamond'].map((t) => <option value={t} selected={f('tier') === t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+          </select>
+          <p class="faint small" style="margin-top: 6px;">The tier embedded in the signed license. Must be one of the client's tiers (Bronze/Silver/Gold/Diamond).</p>
+        </div>
+      </div>
       <div class="field">
         <label for="description">Description</label>
         <textarea class="textarea" id="description" name="description" style="min-height: 60px;">{f('description')}</textarea>

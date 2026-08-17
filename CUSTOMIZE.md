@@ -95,9 +95,14 @@ set `--accent` to your brand color if you want it back to gold/anything else.
 - Sign in with an admin account, then visit `/hq`. The first admin is created
   from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in your `.env` (dev) or as Cloudflare
   secrets (production).
-- From there you can manage users, products, plans, releases, FAQs,
-  announcements, site content, and read the audit log — all with confirm
-  dialogs and audit trails.
+- From there you can manage orders, licenses, users, products, plans,
+  releases (including uploading the actual download file), FAQs,
+  announcements, site content, and notifications — plus read the audit log.
+  All actions have confirm dialogs and audit trails.
+- Plans are the four tiers **Bronze / Silver / Diamond / Platinum** (editable
+  here). Each plan's *license mode* controls what a purchase grants:
+  **Subscription-period** (license valid while subscribed) or **Permanent**
+  (never expires — used by Platinum).
 
 ## 7. What NOT to touch (unless you mean it)
 

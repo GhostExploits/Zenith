@@ -3,7 +3,7 @@ import type { DbDocument } from '../types';
 /** A fresh, empty database document. */
 export function emptyDb(): DbDocument {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     seededAt: null,
     content: {
       heroTitle: 'A premium Minecraft client.',
@@ -20,6 +20,8 @@ export function emptyDb(): DbDocument {
     sessions: [],
     purchases: [],
     subscriptions: [],
+    licenses: [],
+    notifications: [],
     activity: [],
     audit: [],
     products: [],

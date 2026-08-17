@@ -159,7 +159,17 @@ export async function handleGoogleCallback(request: Request): Promise<GoogleCall
   const code = url.searchParams.get('code');
   const stateParam = url.searchParams.get('state');
   const oauthState = readOAuthState(request);
-  if (!code || !stateParam || !oauthState) {
+  // Google can redirect back with an error instead of a code — most commonly
+  // `access_denied` when the person declined the consent screen. Surface that
+  // honestly rather than claiming the request was invalid.
+  const googleError = url.searchParams.get('error');
+  if (!code) {
+    if (googleError === 'access_denied') {
+      return { ok: false, code: 'oauth_denied', message: 'You closed the Google sign-in window without granting access. No account was created.', clearCookie: clear };
+    }
+    return { ok: false, code: 'oauth_invalid_state', message: 'This sign-in request is invalid or expired. Please try again.', clearCookie: clear };
+  }
+  if (!stateParam || !oauthState) {
     return { ok: false, code: 'oauth_invalid_state', message: 'This sign-in request is invalid or expired. Please try again.', clearCookie: clear };
   }
   // Constant-time compare of the state to avoid leaking timing differences.

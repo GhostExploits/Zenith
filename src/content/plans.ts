@@ -1,49 +1,88 @@
 import type { Plan } from '../lib/types';
 
 /**
- * Pricing plans.
+ * Official Zenith tiers.
  *
- * PRICES ARE PLACEHOLDERS until the owner finalizes pricing. They are defined
- * in exactly one place so they can be adjusted from the admin panel later
- * without touching components. No payment provider is connected yet — the
- * checkout flow intentionally stops at a "payment not configured" state.
+ * These seed the database catalog; after the first seed, the admin panel
+ * (Plans) is the source of truth and edits here stop mattering. Prices are
+ * shown in minor units (cents).
  */
 export const plans: Plan[] = [
   {
-    id: 'zenith-v2-monthly',
+    id: 'zenith-bronze',
     productId: 'zenith-v2',
-    name: 'Monthly',
-    priceCents: 1295,
+    name: 'Bronze',
+    priceCents: 1499,
     currency: 'USD',
     interval: 'month',
-    description: 'Flexible month-to-month access to Zenith V2.',
-    features: ['Full Zenith V2 feature set', 'All updates while subscribed', 'Cloud profile sync', 'Community support'],
+    description: 'Full access to Zenith while your subscription is active.',
+    features: [
+      'All Zenith V2 modules',
+      'All updates while subscribed',
+      'Cloud profile sync',
+      'Community support',
+    ],
     active: true,
     highlighted: false,
+    licenseMode: 'subscription-period',
+    tier: 'bronze',
   },
   {
-    id: 'zenith-v2-yearly',
+    id: 'zenith-silver',
     productId: 'zenith-v2',
-    name: 'Yearly',
-    priceCents: 9995,
+    name: 'Silver',
+    priceCents: 5999,
     currency: 'USD',
     interval: 'year',
-    description: 'A full year of Zenith V2 at a reduced rate.',
-    features: ['Everything in Monthly', '2 months free vs. monthly', 'Priority support', 'Early access to new modules'],
+    description: 'A full year of Zenith at a reduced rate — two months free vs. monthly.',
+    features: [
+      'Everything in Bronze',
+      '2 months free vs. monthly',
+      'Priority support',
+      'Early access to new modules',
+    ],
     active: true,
     highlighted: true,
+    licenseMode: 'subscription-period',
+    tier: 'silver',
   },
   {
-    id: 'zenith-v2-lifetime',
+    id: 'zenith-diamond',
     productId: 'zenith-v2',
-    name: 'Lifetime',
-    priceCents: 24995,
+    name: 'Diamond',
+    priceCents: 2499,
     currency: 'USD',
-    interval: 'once',
-    description: 'One-time purchase. Permanent entitlement to Zenith V2.',
-    features: ['Permanent Zenith V2 entitlement', 'All updates forever', 'Cloud profile sync', 'Priority support'],
+    interval: 'month',
+    description: 'The premium monthly tier for players who want every edge immediately.',
+    features: [
+      'Everything in Silver',
+      'Priority support, faster replies',
+      'Early access to beta builds',
+      'Pre-release module previews',
+    ],
     active: true,
     highlighted: false,
+    licenseMode: 'subscription-period',
+    tier: 'diamond',
+  },
+  {
+    id: 'zenith-gold',
+    productId: 'zenith-v2',
+    name: 'Gold',
+    priceCents: 19999,
+    currency: 'USD',
+    interval: 'once',
+    description: 'One-time purchase. A permanent license that never expires.',
+    features: [
+      'Permanent license — never expires',
+      'All updates forever',
+      'Priority support',
+      'Early access to beta builds',
+    ],
+    active: true,
+    highlighted: false,
+    licenseMode: 'permanent',
+    tier: 'gold',
   },
 ];
 

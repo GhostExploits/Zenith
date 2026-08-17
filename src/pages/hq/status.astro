@@ -1,0 +1,190 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireAdmin } from '../../lib/server/guard';
+import { googleConfig } from '../../lib/server/google';
+import { paymentsConfig } from '../../lib/server/payments';
+import { signingKeyConfigured } from '../../lib/server/authority';
+import { getR2, getD1 } from '../../lib/server/runtime';
+
+const session = await requireAdmin(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+
+const env = import.meta.env;
+
+const google = googleConfig();
+const payments = paymentsConfig();
+const licenseKey = signingKeyConfigured();
+const licensePub = Boolean((env.LICENSE_SIGNING_PUBLIC_KEY as string | undefined)?.trim());
+
+const emailTransport = (env.EMAIL_TRANSPORT as string | undefined) || 'console';
+const emailConfigured =
+  emailTransport === 'console' ||
+  (emailTransport === 'smtp' && Boolean(env.SMTP_HOST)) ||
+  (emailTransport === 'http' && Boolean(env.EMAIL_API_URL) && Boolean(env.EMAIL_API_KEY));
+
+const dbProvider = import.meta.env.DEV ? 'dev (JSON file)' : getD1() ? 'production (Cloudflare D1)' : 'not configured';
+const storageProvider = import.meta.env.DEV ? 'dev (local files)' : getR2() ? 'production (Cloudflare R2)' : 'not configured';
+
+const releasesWithAssets = store
+  .db()
+  .releases.filter((r) => r.asset).length;
+
+interface Row {
+  title: string;
+  status: 'ok' | 'warn' | 'off';
+  statusLabel: string;
+  detail: string;
+  fix?: string;
+}
+
+const rows: Row[] = [
+  {
+    title: 'Payments',
+    status: payments.enabled ? (payments.configured ? 'ok' : 'warn') : 'off',
+    statusLabel: payments.enabled ? (payments.configured ? 'Live' : 'Enabled but incomplete') : 'Maintenance mode',
+    detail: payments.enabled
+      ? payments.configured
+        ? `${payments.provider} is connected — checkout is accepting payments.`
+        : `${payments.provider} is enabled but the API key and/or webhook secret are missing.`
+      : 'Payments are deliberately disabled (maintenance mode). Nobody can be charged, no provider is contacted, and no card details are requested.',
+    fix: payments.enabled
+      ? undefined
+      : 'To go live later: set PAYMENTS_ENABLED=true plus the Paddle API key and webhook secret as Cloudflare secrets.',
+  },
+  {
+    title: 'Google sign-in',
+    status: google ? 'ok' : 'off',
+    statusLabel: google ? 'Configured' : 'Not configured',
+    detail: google
+      ? `Client ID is set. Redirect URI: ${google.redirectUri}`
+      : 'Sign-in with email + password still works. "Continue with Google" is hidden until the three variables below are set.',
+    fix: google
+      ? `In Google Cloud Console (APIs & Services → Credentials), the OAuth client's Authorized redirect URI must be EXACTLY: ${google.redirectUri}. If Google shows "Authorization not configured" or "redirect_uri_mismatch", fix the console entry — the code here is correct.`
+      : 'Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI as Cloudflare secrets, then add that exact redirect URI to the OAuth client in Google Cloud Console.',
+  },
+  {
+    title: 'License signing',
+    status: licenseKey ? 'ok' : 'warn',
+    statusLabel: licenseKey ? 'Key configured' : 'Using ephemeral key',
+    detail: licenseKey
+      ? licensePub
+        ? 'Licenses are signed with the real Zenith client key — purchased keys activate in the client.'
+        : 'Private key is set but the public key is not — signature verification in the client still works (it embeds its own copy).'
+      : 'No LICENSE_SIGNING_KEY is set, so licenses are signed with an ephemeral development key. Real Zenith clients will REJECT these.',
+    fix: licenseKey
+      ? undefined
+      : 'Upload the contents of license-signing.key (from your VapeService data directory) as the LICENSE_SIGNING_KEY secret.',
+  },
+  {
+    title: 'Email delivery',
+    status: emailConfigured ? 'ok' : 'warn',
+    statusLabel: emailConfigured ? emailTransport : 'Unconfigured',
+    detail:
+      emailTransport === 'console'
+        ? 'Emails print to the server log (development only) — nothing is actually sent.'
+        : emailConfigured
+          ? `Emails are sent via ${emailTransport}.`
+          : `EMAIL_TRANSPORT=${emailTransport} but its required settings are missing.`,
+    fix: emailConfigured
+      ? undefined
+      : 'In production set EMAIL_TRANSPORT=http with EMAIL_API_URL and EMAIL_API_KEY (Resend-compatible), or SMTP settings.',
+  },
+  {
+    title: 'Release storage',
+    status: storageProvider.startsWith('production') ? (releasesWithAssets > 0 ? 'ok' : 'warn') : 'ok',
+    statusLabel: storageProvider.startsWith('production') ? (releasesWithAssets > 0 ? 'Ready' : 'Empty') : 'Dev local',
+    detail: `${storageProvider}. ${releasesWithAssets} release${releasesWithAssets === 1 ? '' : 's'} have protected assets attached.`,
+    fix: storageProvider === 'not configured'
+      ? 'Bind the R2 bucket as STORAGE in wrangler.toml, then upload the release zip from the Releases page.'
+      : undefined,
+  },
+  {
+    title: 'Database',
+    status: dbProvider === 'not configured' ? 'off' : 'ok',
+    statusLabel: dbProvider === 'not configured' ? 'Missing' : dbProvider,
+    detail:
+      dbProvider === 'not configured'
+        ? 'No D1 binding — the site serves static content but accounts, purchases and licenses will not work.'
+        : 'All accounts, purchases, licenses and settings are persisted here.',
+    fix: dbProvider === 'not configured'
+      ? 'Bind the D1 database as DB in wrangler.toml (see DEPLOY.md).'
+      : undefined,
+  },
+];
+
+const statusIcon = (s: Row['status']) =>
+  s === 'ok' ? 'check' : s === 'warn' ? 'alert-triangle' : 'clock';
+const badgeClass = (s: Row['status']) =>
+  s === 'ok' ? 'badge--green' : s === 'warn' ? 'badge--accent' : 'badge';
+---
+
+<AdminLayout title="Setup status" user={user}>
+  <div class="app-main-header">
+    <div>
+      <h1>Setup status</h1>
+      <p>
+        Owner-only diagnostics. This page shows what the server can see about its own
+        configuration — if a feature is not working, start here.
+      </p>
+    </div>
+    <span class="badge badge--accent">{user.role}</span>
+  </div>
+
+  <div class="stack" style="gap: 14px; max-width: 860px;">
+    {rows.map((row) => (
+      <div class="card card--pad status-row">
+        <div class="status-head">
+          <div class="status-title">
+            <Icon name={statusIcon(row.status)} size={16} class={`status-icon status-icon--${row.status}`} />
+            <h2>{row.title}</h2>
+          </div>
+          <span class={`badge badge--dot ${badgeClass(row.status)}`} style="text-transform: none; letter-spacing: 0;">
+            {row.statusLabel}
+          </span>
+        </div>
+        <p class="muted small" style="margin: 8px 0 0;">{row.detail}</p>
+        {row.fix && (
+          <p class="status-fix small">
+            <Icon name="alert-triangle" size={14} />
+            {row.fix}
+          </p>
+        )}
+      </div>
+    ))}
+  </div>
+
+  <div class="alert alert--info mt-2" style="max-width: 860px;">
+    <Icon name="shield-check" size={18} />
+    <span>
+      Configuration values are only ever read server-side — nothing on this page is exposed to
+      the public. If Google sign-in shows "Authorization not configured" on Google's page, the
+      cause is the Google Cloud Console project (redirect URI or consent screen), not this site's code.
+    </span>
+  </div>
+</AdminLayout>
+
+<style>
+  .status-row { border-left: 3px solid var(--border); }
+  .status-row:has(.status-icon--ok) { border-left-color: var(--green); }
+  .status-row:has(.status-icon--warn) { border-left-color: var(--amber); }
+  .status-row:has(.status-icon--off) { border-left-color: var(--border); }
+  .status-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .status-title { display: flex; align-items: center; gap: 10px; }
+  .status-title h2 { font-size: 1.05rem; margin: 0; }
+  .status-icon--ok { color: var(--green); }
+  .status-icon--warn { color: var(--amber); }
+  .status-icon--off { color: var(--text-faint); }
+  .status-fix {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--amber);
+  }
+  .status-fix svg { flex-shrink: 0; margin-top: 1px; }
+</style>

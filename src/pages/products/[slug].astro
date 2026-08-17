@@ -3,7 +3,10 @@ import MarketingLayout from '../../layouts/MarketingLayout.astro';
 import Icon from '../../components/icons/Icon.astro';
 import { getProduct, getPlansForProduct, getReleasesForProduct, getPublishedFaqs } from '../../lib/server/catalog';
 import { mediaForProduct } from '../../content/media';
+import { isPaymentsConfigured } from '../../lib/server/payments';
 import { formatPrice, intervalLabel, formatDate } from '../../lib/format';
+
+const paymentsReady = isPaymentsConfigured();
 
 const { slug } = Astro.params;
 const product = await getProduct(slug ?? '');
@@ -161,7 +164,9 @@ const availabilityLabel =
             ))}
           </div>
           <p class="faint small" style="margin-top: 14px;">
-            Payments aren't connected yet — checkout shows an order summary until a provider is integrated.
+            {paymentsReady
+              ? 'Secure checkout · license key delivered to your account instantly'
+              : 'Payments are under maintenance right now — you can browse plans, but checkout is temporarily unavailable.'}
           </p>
           <a class="btn btn--secondary btn--block mt-2" href={`/changelog?product=${product.slug}`}>View changelog</a>
         </aside>

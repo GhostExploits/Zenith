@@ -3,6 +3,7 @@ import AppLayout, { type AppLink } from '../../layouts/AppLayout.astro';
 import Icon from '../../components/icons/Icon.astro';
 import { requireUser } from '../../lib/server/guard';
 import { ownedProductIds } from '../../lib/server/entitlements';
+import { licenseEffectiveStatus, licenseStatusLabel } from '../../lib/server/licenses';
 import { getProducts, getPublishedAnnouncements, getPlans } from '../../lib/server/catalog';
 import { formatDate, formatRelative } from '../../lib/format';
 
@@ -24,6 +25,10 @@ const products = (await getProducts()).filter((p) => owned.includes(p.id));
 const subscriptions = db.subscriptions.filter((s) => s.userId === user.id);
 const activeSub = subscriptions.find((s) => s.status === 'active' && new Date(s.currentPeriodEnd).getTime() > Date.now());
 const plans = await getPlans();
+const licenses = db.licenses
+  .filter((l) => l.userId === user.id)
+  .sort((a, b) => (a.issuedAt < b.issuedAt ? 1 : -1));
+const planName = (id: string) => plans.find((p) => p.id === id)?.name ?? id;
 const activity = db.activity.filter((a) => a.userId === user.id).slice(-8).reverse();
 const announcements = (await getPublishedAnnouncements()).slice(0, 3);
 const unverified = Astro.url.searchParams.get('unverified') === '1';
@@ -66,6 +71,10 @@ const unverified = Astro.url.searchParams.get('unverified') === '1';
     <div class="card card--pad stat-card">
       <div class="stat-label">Member since</div>
       <div class="stat-value" style="font-size: 1.25rem; padding-top: 8px;">{formatDate(user.createdAt)}</div>
+    </div>
+    <div class="card card--pad stat-card">
+      <div class="stat-label">License keys</div>
+      <div class="stat-value">{licenses.length}</div>
     </div>
     <div class="card card--pad stat-card">
       <div class="stat-label">Account status</div>
@@ -133,6 +142,44 @@ const unverified = Astro.url.searchParams.get('unverified') === '1';
 
     <div class="stack" style="gap: 24px;">
       <div>
+        <h2 class="sec-title">License keys</h2>
+        {
+          licenses.length === 0 ? (
+            <div class="card card--pad muted">
+              No license keys yet.
+              <div class="mt-2"><a class="btn btn--sm btn--primary" href="/products">View plans</a></div>
+            </div>
+          ) : (
+            <div class="stack" style="gap: 10px;">
+              {licenses.map((l) => {
+                const status = licenseEffectiveStatus(l);
+                return (
+                  <div class="card card--pad">
+                    <div class="row row--between" style="gap: 10px; flex-wrap: wrap;">
+                      <span class="license-key">{l.key}</span>
+                      <span class="row" style="gap: 6px;">
+                        <span class="badge badge--accent">{l.tier}</span>
+                        <span class:list={['badge', status === 'active' ? 'badge--green badge--dot' : '']}>
+                          {licenseStatusLabel(status)}
+                        </span>
+                      </span>
+                    </div>
+                    <div class="faint small" style="margin-top: 6px;">
+                      {planName(l.planId)} · {l.kind === 'permanent' ? 'Permanent license' : 'Subscription license'}
+                      {l.expiresAt && <> · expires {formatDate(l.expiresAt)}</>}
+                      {l.deviceId
+                        ? <> · <Icon name="shield" size={13} class="stat-icon" style="vertical-align: -2px;" /> bound to your PC</>
+                        : <> · not activated yet — enter this key in the loader</>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        }
+      </div>
+
+      <div>
         <h2 class="sec-title">Subscription</h2>
         {
           activeSub ? (
@@ -198,7 +245,13 @@ const unverified = Astro.url.searchParams.get('unverified') === '1';
   }
   .activity-list li:last-child { border-bottom: none; }
   .activity-list svg { color: var(--accent); flex-shrink: 0; }
-  .activity-list time { margin-left: auto; }
+  .license-key {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.86rem;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+  }
   @media (max-width: 980px) {
     .grid--2[style*='1.5fr'] { grid-template-columns: 1fr !important; }
   }

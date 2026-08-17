@@ -1,18 +1,20 @@
 /**
- * Development seed.
+ * Database seed.
  *
- * Runs exactly once, when the local JSON database file is created. It creates
- * the initial admin account (credentials from ADMIN_EMAIL / ADMIN_PASSWORD env
- * vars, with documented dev defaults) and mirrors the static catalog content
- * into the database so admin-editable data starts populated.
+ * Runs exactly once, when the store has no data (fresh local JSON database
+ * file, or an empty D1 database on Cloudflare). It mirrors the static catalog
+ * content into the database so admin-editable data starts populated, and
+ * creates the initial owner account from ADMIN_EMAIL / ADMIN_PASSWORD.
  *
- * NEVER runs in production: production uses a real database provisioned
- * through migration scripts, and the store is unconfigured until then.
+ * Dev mode additionally seeds demo users/subscriptions and placeholder
+ * release files so the account + download flows can be exercised locally.
+ * Production (`production: true`) creates only the real owner account and the
+ * catalog — never fake users or files.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { DbDocument, User } from '../types';
+import type { DbDocument, Purchase, User } from '../types';
 import { hashPassword } from './auth';
 
 const DEV_ADMIN_EMAIL = 'admin@zenith.local';
@@ -23,9 +25,14 @@ function storageDir(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '../../../data/storage');
 }
 
-export async function seedIfEmpty(db: DbDocument): Promise<DbDocument> {
+export interface SeedOptions {
+  /** True when seeding a production database: no demo users, no placeholder files. */
+  production?: boolean;
+}
+
+export async function seedIfEmpty(db: DbDocument, opts: SeedOptions = {}): Promise<DbDocument> {
   await seedCatalogIntoDb(db);
-  seedReleaseAssets(db);
+  if (!opts.production) seedReleaseAssets(db);
 
   if (db.users.some((u) => u.role === 'owner' || u.role === 'admin')) return db;
 
@@ -51,7 +58,13 @@ export async function seedIfEmpty(db: DbDocument): Promise<DbDocument> {
     lastLoginAt: now,
   };
 
-  // Demo users so the admin Users table has something to look at (dev only).
+  db.seededAt = now;
+  db.users.push(admin);
+
+  // Everything below is development-only demo data. Never seed it into a
+  // production database.
+  if (opts.production) return db;
+
   const demoUsers: User[] = [];
   for (const [i, name] of ['alex', 'sam'].entries()) {
     const { hash: h, salt: s, iterations: it } = await hashPassword('zenith-dev-password');
@@ -70,23 +83,47 @@ export async function seedIfEmpty(db: DbDocument): Promise<DbDocument> {
       updatedAt: now,
     });
   }
+  db.users.push(...demoUsers);
 
   // Demo subscription so account pages render meaningfully (dev only).
   const periodEnd = new Date(Date.now() + 26 * 24 * 60 * 60 * 1000).toISOString();
-
-  db.seededAt = now;
-  db.users.push(admin, ...demoUsers);
   db.subscriptions.push({
     id: 'sub-demo-1',
     userId: 'user-demo-0',
     productId: 'zenith-v2',
-    planId: 'zenith-v2-monthly',
+    planId: 'zenith-bronze',
     status: 'active',
     currentPeriodEnd: periodEnd,
     cancelAtPeriodEnd: false,
     provider: 'dev-seed',
     createdAt: now,
   });
+
+  // Demo license (signed with the dev ephemeral key) so the account dashboard
+  // and authority endpoints can be exercised without a real payment.
+  const demoPlan = db.plans.find((p) => p.id === 'zenith-bronze');
+  if (demoPlan) {
+    const { buildLicenseForPurchase } = await import('./licenses');
+    const demoUser = db.users.find((u) => u.id === 'user-demo-0')!;
+    const purchase: Purchase = {
+      id: 'purchase-demo-1',
+      userId: demoUser.id,
+      productId: 'zenith-v2',
+      planId: demoPlan.id,
+      amountCents: demoPlan.priceCents ?? 0,
+      currency: demoPlan.currency,
+      status: 'paid',
+      provider: 'dev-seed',
+      providerRef: 'dev-seed-1',
+      createdAt: now,
+      paidAt: now,
+    };
+    db.purchases.push(purchase);
+    const subscription = db.subscriptions.find((s) => s.id === 'sub-demo-1');
+    const license = await buildLicenseForPurchase(db, demoUser, demoPlan, purchase, subscription);
+    db.licenses.push(license);
+    purchase.licenseId = license.id;
+  }
 
   return db;
 }
@@ -103,8 +140,12 @@ function seedReleaseAssets(db: DbDocument): void {
       const dir = join(storageDir(), release.id.replace(/[^a-zA-Z0-9._-]/g, '_'));
       mkdirSync(dir, { recursive: true });
       const filename = release.asset.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const target = join(dir, filename);
+      // Never overwrite a file that is already there (real builds placed in
+      // data/storage or uploaded via the admin panel survive reseeds).
+      if (existsSync(target)) continue;
       writeFileSync(
-        join(dir, filename),
+        target,
         `Zenith development placeholder release asset\n\n` +
           `Product: ${release.productId}\n` +
           `Version: ${release.version}\n` +

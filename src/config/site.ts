@@ -11,11 +11,11 @@
 
 export const site = {
   name: 'Zenith',
-  tagline: 'A premium Minecraft client.',
+  tagline: 'Precision tools. Competitive advantage.',
   description:
-    'Zenith is a premium Minecraft client built for performance, customization, and control. Fine-tune your game with a polished, modular feature set.',
-  url: 'https://zenith.pages.dev', // placeholder until the production domain is set
-  domain: 'zenith.pages.dev',
+    'Zenith is a premium Minecraft client built for performance, precision, and control. Fine-tune every module, keep the game smooth, and play with an edge.',
+  url: 'https://zenithv2.pages.dev',
+  domain: 'zenithv2.pages.dev',
 
   // The official logo asset (white wordmark, transparent background).
   logo: {

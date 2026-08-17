@@ -1,0 +1,220 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import ConfirmDialog from '../../components/ConfirmDialog.astro';
+import { requireAdmin } from '../../lib/server/guard';
+import { authorityWarnings } from '../../lib/server/authority';
+import { licenseEffectiveStatus } from '../../lib/server/licenses';
+import { formatDate, formatRelative } from '../../lib/format';
+
+const session = await requireAdmin(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+
+const userEmail = (id: string) => db.users.find((u) => u.id === id)?.email ?? id;
+const planName = (id: string) => db.plans.find((p) => p.id === id)?.name ?? id;
+const productName = (id: string) => db.products.find((p) => p.id === id)?.name ?? id;
+
+const query = Astro.url.searchParams.get('q')?.toLowerCase() ?? '';
+const licenses = db.licenses
+  .filter(
+    (l) =>
+      !query ||
+      l.key.toLowerCase().includes(query) ||
+      userEmail(l.userId).toLowerCase().includes(query) ||
+      planName(l.planId).toLowerCase().includes(query),
+  )
+  .sort((a, b) => (a.issuedAt < b.issuedAt ? 1 : -1));
+
+const activeCount = db.licenses.filter((l) => licenseEffectiveStatus(l) === 'active').length;
+const permanentCount = db.licenses.filter((l) => l.kind === 'permanent').length;
+const boundCount = db.licenses.filter((l) => l.deviceId).length;
+const warnings = authorityWarnings();
+---
+
+<AdminLayout title="Licenses" user={user}>
+  <div class="app-main-header">
+    <div>
+      <h1>Licenses</h1>
+      <p>License keys are generated automatically from verified purchases — manage them here.</p>
+    </div>
+    <form method="get" class="row" style="gap: 8px;">
+      <input class="input" type="search" name="q" value={query} placeholder="Search key, email, or plan…" aria-label="Search licenses" style="width: 260px;" />
+      <button class="btn btn--secondary" type="submit"><Icon name="search" size={16} /></button>
+    </form>
+    <a class="btn btn--primary" href="#create"><Icon name="plus" size={16} /> Issue license</a>
+  </div>
+
+  {warnings.length > 0 && (
+    <div class="alert alert--accent mb-2">
+      <Icon name="alert-triangle" size={18} />
+      <span>{warnings.join(' ')}</span>
+    </div>
+  )}
+
+  <div class="stat-grid mb-3">
+    <div class="card card--pad stat-card">
+      <div class="stat-label"><Icon name="key" size={14} class="stat-icon" style="vertical-align: -2px; margin-right: 6px;" /> Active licenses</div>
+      <div class="stat-value">{activeCount}</div>
+    </div>
+    <div class="card card--pad stat-card">
+      <div class="stat-label"><Icon name="star" size={14} class="stat-icon" style="vertical-align: -2px; margin-right: 6px;" /> Permanent</div>
+      <div class="stat-value">{permanentCount}</div>
+    </div>
+    <div class="card card--pad stat-card">
+      <div class="stat-label"><Icon name="package" size={14} class="stat-icon" style="vertical-align: -2px; margin-right: 6px;" /> Total issued</div>
+      <div class="stat-value">{db.licenses.length}</div>
+    </div>
+    <div class="card card--pad stat-card">
+      <div class="stat-label"><Icon name="shield" size={14} class="stat-icon" style="vertical-align: -2px; margin-right: 6px;" /> Bound to a device</div>
+      <div class="stat-value">{boundCount}</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>License key</th>
+          <th>User</th>
+          <th>Tier</th>
+          <th>Device</th>
+          <th>Status</th>
+          <th>Expires</th>
+          <th>Last seen</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {licenses.map((l) => {
+          const status = licenseEffectiveStatus(l);
+          return (
+            <tr>
+              <td>
+                <div class="mono" style="font-weight: 600; color: var(--accent);">{l.key}</div>
+                <div class="faint small">{productName(l.productId)} / {planName(l.planId)} · {l.activationHistory.length} activations</div>
+              </td>
+              <td class="muted small">{userEmail(l.userId)}</td>
+              <td><span class="badge badge--accent">{l.tier}</span></td>
+              <td class="small">
+                {l.deviceId ? (
+                  <>
+                    <span class="badge badge--green badge--dot">Bound</span>
+                    <div class="faint small mono">{l.deviceId.slice(0, 10)}…{l.boundAt ? ` · ${formatRelative(l.boundAt)}` : ''}</div>
+                  </>
+                ) : (
+                  <span class="badge">Unbound</span>
+                )}
+                {l.clientVersion && <div class="faint small" style="margin-top: 2px;">{l.clientVersion}</div>}
+              </td>
+              <td>
+                {status === 'active' ? <span class="badge badge--green badge--dot">Active</span>
+                  : status === 'unused' ? <span class="badge badge--blue badge--dot">Unused</span>
+                  : status === 'expired' ? <span class="badge">Expired</span>
+                  : status === 'suspended' ? <span class="badge badge--violet badge--dot">Suspended</span>
+                  : <span class="badge badge--red badge--dot">Revoked</span>}
+              </td>
+              <td class="faint small">{l.expiresAt ? formatDate(l.expiresAt) : 'Never'}</td>
+              <td class="faint small">{l.lastSeenAt ? formatRelative(l.lastSeenAt) : '—'}</td>
+              <td>
+                <div class="row" style="gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
+                  {status === 'revoked' || status === 'suspended' ? (
+                    <form method="post" action="/api/admin/licenses">
+                      <input type="hidden" name="action" value="reactivate" />
+                      <input type="hidden" name="id" value={l.id} />
+                      <button class="btn btn--sm btn--secondary" type="submit">Reactivate</button>
+                    </form>
+                  ) : status === 'active' || status === 'unused' ? (
+                    <>
+                      <form method="post" action="/api/admin/licenses" class="row" style="gap: 4px;">
+                        <input type="hidden" name="action" value="extend" />
+                        <input type="hidden" name="id" value={l.id} />
+                        <input class="input" type="number" name="days" min="1" placeholder="+days" aria-label="Extend by days" style="width: 64px; padding: 6px 8px; font-size: 0.8rem;" />
+                        <button class="btn btn--sm btn--secondary" type="submit" title="Extend license">Extend</button>
+                      </form>
+                      <form method="post" action="/api/admin/licenses" class="row" style="gap: 4px;">
+                        <input type="hidden" name="action" value="set_tier" />
+                        <input type="hidden" name="id" value={l.id} />
+                        <select class="select" name="tier" aria-label="Change tier" style="width: 96px; padding: 6px 8px; font-size: 0.8rem;">
+                          {['BRONZE', 'SILVER', 'GOLD', 'DIAMOND'].map((t) => <option value={t} selected={l.tier === t}>{t}</option>)}
+                        </select>
+                        <button class="btn btn--sm btn--ghost" type="submit" title="Change tier">Tier</button>
+                      </form>
+                      {l.deviceId && (
+                        <form method="post" action="/api/admin/licenses" data-confirm={`Reset the device binding for ${l.key}? It can then be activated on another PC.`}>
+                          <input type="hidden" name="action" value="reset_device" />
+                          <input type="hidden" name="id" value={l.id} />
+                          <button class="btn btn--sm btn--ghost" type="submit" title="Reset device binding">Reset device</button>
+                        </form>
+                      )}
+                      <form method="post" action="/api/admin/licenses" data-confirm={`Suspend ${l.key}?`}>
+                        <input type="hidden" name="action" value="suspend" />
+                        <input type="hidden" name="id" value={l.id} />
+                        <button class="btn btn--sm btn--ghost" type="submit" title="Suspend license">Suspend</button>
+                      </form>
+                    </>
+                  ) : null}
+                  <form method="post" action="/api/admin/licenses" data-confirm={`Revoke ${l.key}? This removes the user's access.`}>
+                    <input type="hidden" name="action" value="revoke" />
+                    <input type="hidden" name="id" value={l.id} />
+                    <button class="btn btn--sm btn--danger" type="submit" title="Revoke license">
+                      <Icon name="trash" size={14} />
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+
+  {licenses.length === 0 && (
+    <div class="empty-state mt-2">
+      <div class="empty-icon"><Icon name="key" size={36} /></div>
+      <h3>{query ? 'No licenses match your search' : 'No licenses yet'}</h3>
+      <p>Licenses are created automatically from verified payments, or manually below.</p>
+    </div>
+  )}
+
+  <div class="card card--pad-lg mt-3" id="create">
+    <h2 class="sec-title">Issue a license manually</h2>
+    <form method="post" action="/api/admin/licenses" style="max-width: 720px;">
+      <input type="hidden" name="action" value="create" />
+      <div class="grid grid--3">
+        <div class="field">
+          <label for="email">Account email *</label>
+          <input class="input" id="email" name="email" type="email" required placeholder="buyer@example.com" />
+        </div>
+        <div class="field">
+          <label for="planId">Plan *</label>
+          <select class="select" id="planId" name="planId" required>
+            {db.plans.filter((p) => p.active).map((p) => <option value={p.id}>{p.name} ({productName(p.productId)})</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="expiresAt">Expires (optional, date)</label>
+          <input class="input" id="expiresAt" name="expiresAt" type="date" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="notes">Notes (optional)</label>
+        <input class="input" id="notes" name="notes" placeholder="e.g. giveaway prize, manual grant" />
+      </div>
+      <button class="btn btn--primary" type="submit"><Icon name="key" size={16} /> Issue license</button>
+    </form>
+    <p class="faint small mt-2" style="margin-bottom: 0;">
+      Permanent plans (e.g. Gold) issue non-expiring licenses unless an expiry date is set. Issued licenses are
+      signed with the Zenith authority key and work in the real client. Reset device transfers a license to a new PC.
+    </p>
+  </div>
+  <ConfirmDialog />
+</AdminLayout>
+
+<style>
+  .mono { font-family: var(--font-mono); }
+  .sec-title { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 16px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+</style>

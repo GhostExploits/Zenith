@@ -23,6 +23,18 @@ export interface Plan {
   features: string[];
   active: boolean;
   highlighted: boolean;
+  /**
+   * What kind of license a verified purchase of this plan grants:
+   *   permanent            → a license that never expires (e.g. lifetime)
+   *   subscription-period  → a license tied to the active subscription period
+   */
+  licenseMode: 'permanent' | 'subscription-period';
+  /**
+   * License tier granted by this plan. Must be one of the Zenith client's
+   * tiers (BRONZE/SILVER/GOLD/DIAMOND) — the client gates modules on it and
+   * rejects unknown tiers by treating them as SILVER.
+   */
+  tier: 'bronze' | 'silver' | 'gold' | 'diamond';
 }
 
 export interface ProductFeature {
@@ -154,6 +166,8 @@ export interface User {
   googleId?: string;
   /** Google profile picture (used for the account avatar). */
   avatarUrl?: string;
+  /** Payment provider customer id (cached after first checkout). */
+  providerCustomerId?: string;
   role: Role;
   emailVerified: boolean;
   emailVerifiedAt?: string;
@@ -185,6 +199,66 @@ export interface Purchase {
   provider: string;
   providerRef?: string;
   createdAt: string;
+  paidAt?: string;
+  refundedAt?: string;
+  /** License granted for this purchase (one-time plans) or its subscription. */
+  licenseId?: string;
+}
+
+export interface License {
+  id: string;
+  /** Public license key, e.g. ZEN-XXXX-XXXX-XXXX. */
+  key: string;
+  /**
+   * Client-facing license identifier embedded in the signed entitlement
+   * payload (UUID). The Zenith client parses it from the payload.
+   */
+  licenseId: string;
+  userId: string;
+  productId: string;
+  planId: string;
+  purchaseId?: string;
+  subscriptionId?: string;
+  kind: 'permanent' | 'subscription';
+  /** unused = admin-issued, not yet attached to an entitlement flow. */
+  status: 'unused' | 'active' | 'expired' | 'revoked' | 'suspended';
+  /**
+   * Client tier. Must be one of BRONZE/SILVER/GOLD/DIAMOND (the Zenith
+   * client's tier set). The client gates module access on this value.
+   */
+  tier: 'BRONZE' | 'SILVER' | 'GOLD' | 'DIAMOND';
+  /** Recipient label embedded in the signed payload (the account email). */
+  recipient: string;
+  issuedAt: string;
+  /** Absent for permanent licenses. */
+  expiresAt?: string;
+  activatedAt?: string;
+  revokedAt?: string;
+  notes?: string;
+  /**
+   * Ed25519 signature over the canonical entitlement payload (see
+   * src/lib/server/authority.ts). The Zenith client verifies this locally
+   * with the public key embedded in the client — a license without a valid
+   * signature never unlocks the client.
+   */
+  signature?: string;
+  /** Machine fingerprint the license is bound to (max 1 device). */
+  deviceId?: string;
+  boundAt?: string;
+  transferCount: number;
+  lastSeenAt?: string;
+  clientVersion?: string;
+  /** Record of activation/use events (when, from where). */
+  activationHistory: { at: string; ip?: string; hwid?: string }[];
+}
+
+export interface Notification {
+  id: string;
+  type: 'purchase' | 'payment' | 'license' | 'subscription' | 'refund' | 'user' | 'system' | 'download';
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
 }
 
 export type SubscriptionStatus = 'active' | 'past_due' | 'canceled' | 'expired';
@@ -239,13 +313,15 @@ export interface SiteContent {
 // ---------------------------------------------------------------------------
 
 export interface DbDocument {
-  schemaVersion: 1;
+  schemaVersion: 2;
   seededAt: string | null;
   content: SiteContent;
   users: User[];
   sessions: Session[];
   purchases: Purchase[];
   subscriptions: Subscription[];
+  licenses: License[];
+  notifications: Notification[];
   activity: AccountActivity[];
   audit: AuditEntry[];
   /** Admin-managed catalog rows (products/plans/releases/faqs/announcements). */

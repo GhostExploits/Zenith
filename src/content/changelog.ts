@@ -11,45 +11,42 @@ export const releases: Release[] = [
   {
     id: 'rel-z2-042',
     productId: 'zenith-v2',
-    version: '0.4.2-beta',
-    title: 'Beta 0.4.2',
-    date: '2026-08-10',
-    channel: 'beta',
+    version: '4.21',
+    title: 'Zenith V2 4.21',
+    date: '2026-08-16',
+    channel: 'stable',
     featured: true,
     published: true,
-    summary: 'HUD overhaul, new theme engine options, and a round of stability fixes across movement and render modules.',
+    summary:
+      'Zenith V2 4.21: the current release build with the license-activated loader, one-PC device binding, and the full module suite.',
     sections: [
       {
-        title: 'Added',
+        title: 'License & activation',
         items: [
-          'Theme engine: custom accent colors and per-panel styling',
-          'HUD: new target-info widgets with configurable layout anchors',
-          'Profile sync: manual export/import of full config packs',
+          'Licenses activate through the loader and bind to one PC — the same key cannot be used on a second machine',
+          'Every license is verified server-side and signed with the Zenith authority key',
+          'Subscriptions renew automatically and keep the client active while paid',
         ],
       },
       {
-        title: 'Improved',
+        title: 'Client',
         items: [
-          'Click GUI search now matches module descriptions, not just names',
-          'Reduced input latency on the settings panel during gameplay',
-          'Smoother name-tag distance scaling on high entity counts',
+          'Full module suite: combat, movement, render, player, world and utility categories',
+          'Modern Click GUI with search, profiles and theme engine',
+          'Native loader injection for reduced startup latency',
         ],
       },
       {
-        title: 'Fixed',
-        items: [
-          'Fixed a crash when opening the HUD editor with certain theme presets',
-          'Fixed velocity settings not applying after a server change',
-          'Fixed ESP lines rendering incorrectly on 1.21.x',
-        ],
+        title: 'Supported',
+        items: ['Windows 10/11 with the bundled loader', 'Minecraft 1.8.9, 1.12.2, 1.16.5, 1.21.x'],
       },
     ],
     minecraftVersions: ['1.8.9', '1.12.2', '1.16.5', '1.21.x'],
-    platforms: ['Windows 10/11', 'macOS (Intel & Apple Silicon)', 'Linux'],
+    platforms: ['Windows 10/11'],
     asset: {
-      filename: 'Zenith-V2-0.4.2-beta.jar',
-      sizeBytes: 0, // placeholder — populated when real builds are published
-      sha256: '[RELEASE_SHA256]',
+      filename: 'Zenith-V2-4.21.zip',
+      sizeBytes: 48952076,
+      sha256: 'd0fcd52b1c4f1f1e854f3c24670b337cc990e9d5b078a11228b6240f46368097',
     },
     requiresEntitlement: true,
   },
@@ -79,11 +76,6 @@ export const releases: Release[] = [
     ],
     minecraftVersions: ['1.8.9', '1.12.2', '1.16.5', '1.21.x'],
     platforms: ['Windows 10/11', 'macOS (Intel & Apple Silicon)', 'Linux'],
-    asset: {
-      filename: 'Zenith-V2-0.4.1-beta.jar',
-      sizeBytes: 0,
-      sha256: '[RELEASE_SHA256]',
-    },
     requiresEntitlement: true,
   },
   {
@@ -112,11 +104,6 @@ export const releases: Release[] = [
     ],
     minecraftVersions: ['1.8.9', '1.12.2', '1.16.5', '1.21.x'],
     platforms: ['Windows 10/11', 'macOS (Intel & Apple Silicon)', 'Linux'],
-    asset: {
-      filename: 'Zenith-V2-0.4.0-beta.jar',
-      sizeBytes: 0,
-      sha256: '[RELEASE_SHA256]',
-    },
     requiresEntitlement: true,
   },
   {
@@ -141,11 +128,6 @@ export const releases: Release[] = [
     ],
     minecraftVersions: ['1.8.9', '1.12.2', '1.16.5'],
     platforms: ['Windows 10/11', 'macOS (Intel & Apple Silicon)', 'Linux'],
-    asset: {
-      filename: 'Zenith-V2-0.3.0-beta.jar',
-      sizeBytes: 0,
-      sha256: '[RELEASE_SHA256]',
-    },
     requiresEntitlement: true,
   },
 ];

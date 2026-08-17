@@ -29,6 +29,9 @@ const BUCKETS: Record<string, { max: number; windowMs: number }> = {
   admin: { max: 30, windowMs: 15 * 60 * 1000 },
   // Release downloads.
   download: { max: 30, windowMs: 15 * 60 * 1000 },
+  // License authority (loader login + client status). The key is the
+  // credential, so failed attempts are brute-force surface.
+  license: { max: 60, windowMs: 15 * 60 * 1000 },
 };
 
 const buckets = new Map<string, number[]>();

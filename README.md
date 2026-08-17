@@ -4,13 +4,21 @@ The official website for **Zenith**, a premium Minecraft client. This repository
 contains the public site, the account portal, the commerce architecture, and a
 secure admin foundation — built to deploy on Cloudflare Pages.
 
-> **Status: Step One foundation, Cloudflare-ready.** Public site, real
-> authentication (email/password + Google OAuth, email verification),
-> entitlements, protected downloads, and the admin panel are implemented and
-> verified against the production Cloudflare worker locally. A production
-> database, payments, real release storage, and a live email provider are
-> designed-for and documented below but intentionally not connected yet —
-> those routes return a clean `503 backend_not_configured` until then.
+> **Status: production backend ready.** Public site, real authentication
+> (email/password + Google OAuth, email verification), entitlements, license
+> keys, protected downloads, payments (Paddle), the admin panel, and the
+> **Zenith client license authority** are implemented. Payments ship in
+> **maintenance mode** (`PAYMENTS_ENABLED=false` by default) — the store is
+> fully browsable but nobody can be charged until the flag is deliberately
+> enabled alongside the Paddle credentials. The production stack is
+> Cloudflare D1 (database), Cloudflare R2 (private release files) and Paddle
+> (payments). Licenses are Ed25519-signed entitlements the Zenith V2 client
+> verifies locally, with one-PC device binding. What remains to go live is
+> one-time configuration with your own credentials — creating the D1 database
+> and R2 bucket, plus the Google/Paddle/email secrets and the license signing
+> key. See `DEPLOY.md` for the exact steps. Until those bindings exist,
+> affected routes return a clean `503 backend_not_configured` and the public
+> site keeps serving from static content.
 
 > **Owner guides:** [`CUSTOMIZE.md`](CUSTOMIZE.md) — where to edit text,
 > screenshots, colors, and how to use the admin panel. [`DEPLOY.md`](DEPLOY.md)
@@ -25,7 +33,8 @@ secure admin foundation — built to deploy on Cloudflare Pages.
 npm install
 
 # Development (creates a seeded local database on first run:
-# data/db.json + data/storage with placeholder release files)
+# data/db.json + data/storage; the current release build is already staged
+# under data/storage/rel-z2-042 — delete data/ to re-seed)
 npm run dev
 # → http://localhost:4321
 
@@ -95,7 +104,11 @@ src/
     types.ts             Domain model (products, plans, releases, users, commerce)
     format.ts            Price/date/size formatting
     server/
-      store.ts           DB abstraction: JSON-file store (dev) + prod placeholder
+      store.ts           DB abstraction: JSON-file store (dev) + D1 store (prod)
+      authority.ts       License authority: canonical payload + Ed25519 signing
+                         (the contract the Zenith client verifies locally)
+      licenses.ts        License system: ZEN- keys, device binding, activation,
+                         status checks, admin lifecycle
       auth.ts            PBKDF2 hashing, signed session cookies, CSRF, roles
       tokens.ts          Single-use expiring tokens (verify email, reset password)
       google.ts          Google OAuth: PKCE/state/nonce, ID-token validation,
@@ -115,7 +128,9 @@ src/
     admin/               dashboard, users, products, plans, releases, faqs,
                          announcements, content, audit
     api/                 /api/auth/*, /api/account/*, /api/admin/[resource],
-                         /api/downloads/[releaseId], /api/support/ticket
+                         /api/downloads/[releaseId], /api/support/ticket,
+                         /loader/login, /license/status, /license/activate,
+                         /license/public-key (client + loader authority)
 wrangler.toml            Pages compatibility settings (nodejs_compat, KV placeholder)
 ```
 
@@ -170,12 +185,25 @@ The browser is never trusted. Everything sensitive is enforced server-side:
 - **CSRF** — `SameSite=Lax` cookies plus an Origin / `Sec-Fetch-Site` check on
   every state-changing request.
 - **Rate limiting** — in-memory limiter on signin/signup/forgot/reset/resend/support
-  (single integration point; swap for KV/WAF in production).
+  (single integration point; swap for KV/WAF in production). Every attempt
+  counts — successful signups/verifications are rate-limited too, not just
+  failures.
+- **Payment maintenance mode** — payments are **disabled by default**
+  (`PAYMENTS_ENABLED` unset or `false`). Even if Paddle credentials are
+  present, no checkout is created, no provider API is called, and webhooks are
+  ignored until the owner deliberately sets `PAYMENTS_ENABLED=true`. The
+  checkout page shows a "Payments under maintenance" state and never collects
+  card details; only the actual purchase action is blocked.
 - **Email verification** — accounts start unverified; a single-use, expiring
   token is emailed (24 h). Tokens are invalidated when a new one is issued,
   consumed exactly once, and required before protected downloads. Email changes
   also require verification of the new address. `sendEmail` reports delivery
   honestly — a "we sent it" message is never shown for a failed send.
+- **License authority** — the website is the remote license authority for the
+  Zenith client. Licenses are canonical payloads signed with the owner's
+  Ed25519 key (the client verifies them locally against the key embedded in
+  the client). Device binding (max 1 PC) is enforced server-side; only the
+  owner can reset a binding. All license endpoints are rate-limited.
 - **Roles** — `user → moderator/support → admin → owner`, enforced in API
   guards (`requireAdmin`) and SSR page guards. Role changes respect rank.
 - **Admin audit log** — every admin mutation records actor, action, resource,
@@ -241,6 +269,26 @@ safe: an existing account is linked to Google only when its email is already
 verified; Google-only accounts can add a password in Settings, and
 password-first accounts can connect Google from Settings → Sign-in methods.
 
+**If Google shows "Authorization not configured" (403 access_denied)** after
+clicking "Continue with Google": that message is **not produced by this site**
+(it does not exist in this codebase) — it comes from Google's own OAuth server
+and means the **Google Cloud Console project** is not fully set up. Fix it
+there:
+
+1. Configure the **OAuth consent screen** (APIs & Services → OAuth consent
+   screen): app name, support email, and the `email`/`profile` scopes. While
+   the app is in "Testing" status, add the email you sign in with under
+   **Test users**.
+2. Create the **OAuth client** in the *same* project (APIs & Services →
+   Credentials → OAuth client ID → Web application) and add the authorized
+   redirect URI — it must match `GOOGLE_REDIRECT_URI` **character-for-character**
+   (no trailing slash, same protocol/domain).
+3. Email + password signup works regardless — it never touches Google.
+
+Sign in with `/hq` as the owner and open **Setup Status** for a live readout
+of whether Google OAuth, payments, the license key, email and storage are
+configured.
+
 ### Email delivery
 
 `EMAIL_TRANSPORT` selects the transport (see `.env.example`):
@@ -279,59 +327,246 @@ The panel is intentionally unadvertised — the path is documented in
 `CUSTOMIZE.md` (the route prefix is `/hq`). It is server-guarded; role must be
 `admin` or `owner`:
 
-- **Dashboard** — user/subscription/product/release counts, recent activity.
+- **Dashboard** — users, revenue, paid orders, active subscriptions, active
+  licenses, unread notifications, failed payments; recent purchases,
+  registrations, licenses and admin activity.
+- **Orders** — every purchase/renewal from verified payment events with
+  revenue stats and search (customer, plan, reference).
+- **Licenses** — search keys/emails/plans, view tier, device binding (bound
+  machine, last seen, client version), issue (assign to an account + plan),
+  revoke, suspend, reactivate, extend, change tier, **reset device binding**
+  (transfer to a new PC), delete — all audited and notified.
+- **Notifications** — owner-facing events (purchase, refund, failed payment,
+  subscription, license, webhook errors).
 - **Users** — search, role management, suspend/reinstate (suspension signs the
   user out immediately).
 - **Products / Plans / Releases / FAQs / Announcements** — full CRUD with
-  draft/published states; releases support scheduled dates and entitlement
-  requirements.
+  draft/published states; plans configure the license mode (permanent vs
+  subscription-period); releases support file upload to private R2 storage
+  (filename, size and SHA-256 computed server-side).
 - **Site Content** — hero copy, CTA labels, Discord/support links, banner
   (whitelisted fields only — no raw code editing).
-- **Audit Log** — immutable record of admin actions.
-
-Normal users hitting the panel are sent to the styled denial page; API admin
-routes return 403.
+- **Audit Log** — immutable record of admin actions.Normal users hitting the panel are sent to the styled denial page; API
+admin routes return 403.
 
 ---
 
-## Commerce & entitlements
+## Managing Zenith from your phone
+
+The whole admin panel is **mobile-friendly** — you can run the business from
+your phone: check orders, issue or reset licenses, change pricing, upload
+releases, and read notifications.
+
+### Opening the panel on your phone
+
+1. Open **any phone browser** (Chrome, Safari) and go to:
+   `https://zenithv2.pages.dev/hq` (or your custom domain + `/hq`).
+2. **Sign in with your owner account** — the same one you set as `ADMIN_EMAIL`
+   (either the "Continue with Google" button or your email + `ADMIN_PASSWORD`).
+   The panel only works for you; anyone else is shown a "Not allowed" page.
+3. Done — everything below works in the same browser. Add the page to your
+   home screen ("Add to Home Screen" in the browser menu) for a full-screen
+   app-like shortcut.
+
+> The panel is **not linked anywhere on the public site** and is excluded from
+> search engines on purpose. Bookmark it — don't paste the link into chat
+> servers or support threads.
+
+### The mobile layout
+
+- **Top bar** under the site header shows the section you're in. Tap the
+  **hamburger button (☰)** on the left to open the full menu drawer —
+  Dashboard, Orders, Licenses, Users, Products, Plans, Releases, FAQs,
+  Announcements, Site Content, Notifications, Audit Log. Tap anywhere outside
+  the drawer (or press back) to close it.
+- **Tables** (orders, licenses, users…) scroll sideways on phones; the first
+  column — the customer's email, the license key, the product name — stays
+  **pinned on the left** while you swipe to reach the action buttons.
+- **Buttons and forms** stretch to full width on phones, so there's no
+  fiddly tapping.
+
+### What you can do from your phone
+
+| Section | What you can do |
+| --- | --- |
+| **Dashboard** (`/hq`) | Revenue, users, active licenses, failed payments, recent activity — at a glance. |
+| **Orders** (`/hq/orders`) | Every purchase with customer, plan, amount, status; search by email/plan/reference. |
+| **Licenses** (`/hq/licenses`) | Issue a license to any account, revoke, suspend, reactivate, extend (+days), **change tier**, and **reset a device binding** (see below). Search by key/email/plan. |
+| **Users** (`/hq/users`) | Find users, change roles, suspend/reinstate (suspending signs them out immediately). |
+| **Products** (`/hq/products`) | Edit product pages, toggle availability, manage the catalog. |
+| **Plans** (`/hq/plans`) | Edit the four tiers' prices, billing interval, features, and license mode — price changes apply to checkout instantly. |
+| **Releases** (`/hq/releases`) | Publish changelog entries and **upload the download file** (filename, size and SHA-256 are computed server-side). |
+| **FAQs / Announcements** | Add or edit support content and banner announcements. |
+| **Site Content** (`/hq/content`) | Change hero copy, CTA labels, Discord/support links, announcement banner. |
+| **Notifications** (`/hq/notifications`) | Purchase, refund, failed-payment, license-activation, and webhook-error events. |
+| **Audit Log** (`/hq/audit`) | Every admin action, with actor, time and IP. |
+
+### Resetting a customer's device/license binding
+
+Each license is bound to **one PC** (the machine that first activated it). When
+someone switches computers, you transfer the license like this:
+
+1. `/hq` → **Licenses**.
+2. Search for the license key or the customer's email.
+3. Tap **Reset device** on that row (it appears when the license is bound).
+4. Confirm. The license is unbound and can be activated on the new PC.
+
+Customers can't reset their own binding — that's what stops one key being
+shared across machines. If someone asks, do it for them here. Revoking a
+license kicks the client immediately; extending adds days to its expiry.
+
+### Security notes for phone use
+
+- The panel is protected by the site's normal session cookie (HttpOnly,
+  `SameSite=Lax`, HTTPS). Signing in on a phone is as safe as on a desktop.
+- **Use a strong `ADMIN_PASSWORD`** (set as a Cloudflare secret), and prefer
+  Google sign-in with your personal account so there's nothing extra to
+  remember.
+- If you sign in on a shared/borrowed device, use the **Sign out** button in
+  the header (Account → Sign out) when you're done.
+- The admin API routes reject anyone without an admin/owner session (403),
+  even if they guess the URL — the panel is never protected by obscurity alone.
+- **Never commit** `AUTH_SECRET`, `ADMIN_PASSWORD`, `LICENSE_SIGNING_KEY`, or
+  any other secret to git. They live in Cloudflare's secret store.
+
+### What must be configured first (one-time)
+
+The panel reads and writes the production database, so it only works after the
+backend is live. You need, once (details in [`DEPLOY.md`](DEPLOY.md)):
+
+1. **Cloudflare D1** database created + `database_id` in `wrangler.toml`
+   (`npm run db:create` → `npm run db:migrate`), and the **R2** release bucket
+   (`npm run r2:create`).
+2. **Secrets** in the Cloudflare dashboard: `AUTH_SECRET`, `ADMIN_EMAIL`
+   (your email — this is what makes *you* the owner), `ADMIN_PASSWORD`,
+   `LICENSE_SIGNING_KEY` + `LICENSE_SIGNING_PUBLIC_KEY`, and the Google/Paddle
+   credentials.
+3. **A deploy.** Push to GitHub and let Cloudflare Pages build it, or run
+   `npm run build` and deploy the `dist/` output.
+
+If a section shows an empty state or an error like "backend not configured",
+that means one of the steps above is missing — the site itself keeps working,
+but the panel can't read the database yet.
+
+---
+
+## Commerce, payments & licenses
 
 The domain model separates **user → product → plan → purchase / subscription →
-entitlement → release**:
+license → entitlement → release**:
 
-- A user *owns* a product via a paid permanent purchase **or** an active
-  subscription (`hasEntitlement` — server-side only).
-- The checkout page (`/checkout/[planId]`) is an honest order summary: **no
-  payment provider is connected**, so no payment is processed and no
-  entitlement is granted. It displays the exact provider-abstraction point.
-- When a provider is added: validate webhook signatures, make handlers
-  idempotent, and update `purchases`/`subscriptions` **only from verified
-  server events** — never from the browser.
-- Cancellation flows exist in the account portal as the server-side contract
-  for the future provider.
+- **Payments ship in maintenance mode.** They run on Paddle (a Merchant of
+  Record) once enabled, but by default (`PAYMENTS_ENABLED` unset/false) the
+  site shows a "Payments under maintenance" state on the checkout page, and
+  the checkout API returns `503 payments_maintenance` — no transaction is
+  created, no provider is contacted, no webhook is processed, and no card
+  details are ever requested. Setting `PAYMENTS_ENABLED=true` (plus the Paddle
+  credentials) is the deliberate switch to go live; nothing else needs to
+  change.
+- **Payments run on Paddle**, a Merchant of Record: it collects payment,
+  handles global taxes, and never lets card data touch this server. The server
+  creates a hosted checkout from the database plan (price edits in the admin
+  panel apply immediately via inline prices) and redirects the buyer.
+- **The browser is never trusted with a payment.** Entitlements, purchases,
+  subscriptions and license keys are created **only** in the webhook handler
+  (`/api/payments/webhook`) after HMAC-SHA256 signature verification of the
+  raw body (`Paddle-Signature`), with a timestamp replay window. Handlers are
+  idempotent — re-delivered webhooks never double-grant.
+- **Licenses** are generated automatically from verified purchases
+  (`ZEN-XXXX-XXXX-XXXX`, matching the Zenith client's key format): each is a
+  **signed entitlement** (Ed25519) carrying the tier (Bronze / Silver / Gold /
+  Diamond), product, expiry and recipient. Subscription tiers get a license
+  tied to the active period (renewals re-sign and extend it); permanent tiers
+  (Gold) get a license that never expires. The owner can also issue/revoke/
+  extend/suspend/retier licenses and **reset device bindings** from the admin
+  panel (`/hq/licenses`). See [License authority](#license-authority).
+- **Protected downloads** are gated server-side per request by entitlement
+  (active subscription **or** paid permanent purchase) and streamed from
+  private R2 storage — never from a public URL.
+- **Owner notifications** for purchases, refunds, failed payments, license
+  events and webhook errors are recorded in the database and shown in the
+  admin panel (`/hq/notifications`).
+- Cancellation flows in the account portal call the provider first and only
+  reflect provider-confirmed state.
+
+---
+
+## License authority
+
+The Zenith V2 client verifies every license **locally**: the owner's Ed25519
+public key is embedded in the client, and a license is a canonical entitlement
+payload signed with the matching private key. This website is the **remote
+license authority** — it implements the same HTTP contract the local VapeService
+used, so the unmodified client and loader work against it:
+
+| Endpoint | Who calls it | What it does |
+| --- | --- | --- |
+| `POST /loader/login` | Loader | Validate the key, **bind it to the PC** on first use (max 1 device), return a session token |
+| `POST /license/status` | Client | Validate status/expiry/binding, return the signed entitlement payload the client verifies |
+| `POST /license/activate` | (contract parity) | Same as status but binds the device |
+| `GET /license/public-key` | Tooling | The authority's public key as PEM |
+
+Every license issued by a verified payment (or from the admin panel) is signed
+with the owner's key. The payload format is byte-identical to the VapeService
+implementation (`src/lib/server/authority.ts`), so a license bought on the site
+works in the real client without modification.
+
+**Device binding:** a license binds to one machine fingerprint
+(SHA-256 of `zenith-v2:` + Windows MachineGuid) on first activation. The same
+key on a second PC is rejected with `LICENSE_BOUND_OTHER`. Customers cannot
+reset their own binding (that would let one key be shared); the owner does it
+from the admin panel (`/hq/licenses` → Reset device), which is the workflow for
+transferring a license to a new PC.
+
+**Keys:** `ZEN-XXXX-XXXX-XXXX` (the existing VapeService format). Tier values
+are the client's own set — Bronze / Silver / Gold / Diamond — so module gating
+works. Status/expiry changes that are part of the signed payload (extend, tier
+change, renewal) **re-sign** the entitlement automatically; status changes
+(revoke/suspend) don't need to, which is why a revoked license can never unlock
+the client.
+
+**Signing key:** set `LICENSE_SIGNING_KEY` (PKCS8 PEM, from
+`VapeService/data/license-signing.key`) and `LICENSE_SIGNING_PUBLIC_KEY`
+(`license-signing.pub`) as Cloudflare secrets. Without them, development uses an
+ephemeral key and the admin panel shows a warning — real clients will reject
+those licenses.
 
 ---
 
 ## Production backend
 
-The `Store` interface (`src/lib/server/store.ts`) is the seam. Dev uses
-`JsonFileStore` (`data/db.json`, auto-seeded). To go live:
+The `Store` interface (`src/lib/server/store.ts`) is the seam and the
+production store is **implemented**: `D1Store` persists the domain document in
+one row of a Cloudflare D1 database (SQLite). Reads are cached per worker
+isolate and refreshed by middleware on every request; writes are serialized and
+use an optimistic compare-and-swap retry loop, so concurrent isolates never
+lose an update. Dev continues to use `JsonFileStore` (`data/db.json`,
+auto-seeded).
 
-1. **Database** — add a `DB` D1 binding in `wrangler.toml` (commented
-   template included) and implement a `D1Store` (or use KV/R2 + a hosted DB
-   behind a Worker). Keep the same `db()` / `mutate()` contract. Runtime env
-   vars/secrets set in the Pages dashboard are already readable via
-   `import.meta.env` on server routes — no code changes needed.
-2. **Auth** — set `AUTH_SECRET` as a Cloudflare secret binding; keep the
-   session cookie flow (or swap in a provider).
-3. **Email** — set `EMAIL_TRANSPORT` (see [Authentication](#authentication)).
-   Dev prints emails to the console; SMTP and a Resend-compatible HTTP transport
-   are implemented. Production on Cloudflare should use the `http` transport.
-4. **Payments** — see [Commerce](#commerce--entitlements).
-5. **Storage** — implement `getStoredAsset` in `src/lib/server/storage.ts` with
-   R2 signed URLs; keep the entitlement checks in the download endpoint.
-6. **Rate limiting** — replace the in-memory limiter with Cloudflare Rate
-   Limiting or KV-based counters.
+To go live:
+
+1. **Database (D1)** — `npm run db:create` (or create in the dashboard), paste
+   the returned `database_id` into `wrangler.toml`, then `npm run db:migrate`.
+   On first use the store seeds itself: the catalog plus the owner account
+   from `ADMIN_EMAIL` / `ADMIN_PASSWORD` (set both as Cloudflare secrets). No
+   demo data is ever seeded in production.
+2. **Storage (R2)** — `npm run r2:create` (or create the bucket in the
+   dashboard). Release files uploaded from the admin panel are stored there
+   and streamed by the download endpoint after entitlement checks.
+3. **Payments (Paddle)** — see [Commerce](#commerce--entitlements); set
+   `PADDLE_API_KEY` + `PADDLE_WEBHOOK_SECRET` as Cloudflare secrets.
+4. **Auth** — `AUTH_SECRET` as a Cloudflare secret binding; the session
+   cookie flow works as-is.
+5. **Email** — `EMAIL_TRANSPORT=http` on Cloudflare with `EMAIL_API_URL` /
+   `EMAIL_API_KEY` (e.g. Resend). License keys are emailed to buyers on
+   purchase when email is configured.
+6. **License authority** — set `LICENSE_SIGNING_KEY` (the PKCS8 PEM from
+   `VapeService/data/license-signing.key`) and `LICENSE_SIGNING_PUBLIC_KEY`
+   (the matching `.pub`) as Cloudflare secrets. Without the real key the site
+   works but real Zenith clients reject the licenses. See
+   [License authority](#license-authority).
+7. **Rate limiting** — the in-memory limiter works per isolate; pair it with
+   Cloudflare Rate Limiting rules for a hard global cap.
 
 ---
 
@@ -364,6 +599,8 @@ Pages applies them automatically.
    | `EMAIL_TRANSPORT` | plain | `http` on Cloudflare (SMTP is not available on Workers). |
    | `EMAIL_FROM` / `EMAIL_FROM_NAME` | plain | Sender address/name. |
    | `EMAIL_API_URL` / `EMAIL_API_KEY` | secret | Transactional email API (e.g. Resend). |
+   | `LICENSE_SIGNING_KEY` | secret | PKCS8 PEM private key from `VapeService/data/license-signing.key`. Clients reject licenses signed by any other key. |
+   | `LICENSE_SIGNING_PUBLIC_KEY` | secret | X.509 PEM public key (`license-signing.pub`) — enables stored-license tamper checks. |
 
    Env vars and secrets set in the dashboard are available **server-side at
    runtime** on Cloudflare — the built worker reads them through
@@ -447,7 +684,10 @@ See `.env.example` for the full annotated list. Summary:
 | `SMTP_*` | SMTP connection (when `EMAIL_TRANSPORT=smtp`) | — |
 | `EMAIL_API_URL` / `EMAIL_API_KEY` | HTTP email API (when `EMAIL_TRANSPORT=http`) | — |
 | `DATABASE_PROVIDER` / `DATABASE_URL` | Future DB | `json` |
-| `PAYMENT_*`, `R2_*` | Future integrations | placeholders only |
+| `PAYMENTS_ENABLED` | Master switch: `true` turns payments live (requires Paddle keys too) | `false` — maintenance mode, no charges possible |
+| `PAYMENT_PROVIDER`, `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET` | Paddle credentials (ignored while `PAYMENTS_ENABLED` is off) | placeholders |
+| `R2_*` | Future storage integrations | placeholders only |
+| `LICENSE_SIGNING_KEY` / `LICENSE_SIGNING_PUBLIC_KEY` | License authority Ed25519 keypair (see [License authority](#license-authority)) | ephemeral dev key |
 
 ---
 

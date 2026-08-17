@@ -1,13 +1,15 @@
 import type { APIRoute } from 'astro';
 import { ApiError, fail, redirectTo, requireSameOrigin, requireUser } from '../../../../lib/server/api';
 import { logActivity } from '../../../../lib/server/activity';
+import { cancelSubscription, paymentsEnabled, reinstateSubscription } from '../../../../lib/server/payments';
 
 /**
  * Cancel / reinstate a subscription.
  *
- * This is the server-side contract for the (future) payment provider: a real
- * integration will call the provider's API to schedule cancellation and only
- * reflect provider-confirmed state. The dev store just flips the flag.
+ * The provider is the source of truth: with payments configured, cancellation
+ * is scheduled at the provider first and only reflected locally after the
+ * provider confirms; without a provider (dev), the local flag is flipped so
+ * the flow stays testable.
  */
 export const POST: APIRoute = async (ctx) => {
   try {
@@ -21,6 +23,22 @@ export const POST: APIRoute = async (ctx) => {
 
     if (action === 'cancel') {
       if (sub.status !== 'active') throw new ApiError(400, 'not_active', 'Subscription is not active.');
+      // While payments are in maintenance mode, never call the provider — the
+      // local flag is still flipped so the dev flow stays testable.
+      if (sub.provider === 'paddle' && sub.providerRef && !paymentsEnabled()) {
+        throw new ApiError(
+          503,
+          'payments_maintenance',
+          'Payments are temporarily unavailable while the payment system is being finalized.',
+        );
+      }
+      if (sub.provider === 'paddle' && sub.providerRef) {
+        try {
+          await cancelSubscription(sub.providerRef);
+        } catch {
+          throw new ApiError(502, 'provider_error', 'The payment provider could not process the cancellation right now.');
+        }
+      }
       await store.mutate((db) => {
         const s = db.subscriptions.find((x) => x.id === id);
         if (s) s.cancelAtPeriodEnd = true;
@@ -30,6 +48,20 @@ export const POST: APIRoute = async (ctx) => {
     }
 
     if (action === 'reinstate') {
+      if (sub.provider === 'paddle' && sub.providerRef && !paymentsEnabled()) {
+        throw new ApiError(
+          503,
+          'payments_maintenance',
+          'Payments are temporarily unavailable while the payment system is being finalized.',
+        );
+      }
+      if (sub.provider === 'paddle' && sub.providerRef) {
+        try {
+          await reinstateSubscription(sub.providerRef);
+        } catch {
+          throw new ApiError(502, 'provider_error', 'The payment provider could not revoke the cancellation right now.');
+        }
+      }
       await store.mutate((db) => {
         const s = db.subscriptions.find((x) => x.id === id);
         if (s) s.cancelAtPeriodEnd = false;

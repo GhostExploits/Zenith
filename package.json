@@ -14,6 +14,10 @@
     "typecheck": "astro check",
     "test": "vitest run",
     "seed": "node scripts/seed.mjs",
+    "db:create": "wrangler d1 create zenith",
+    "db:migrate": "wrangler d1 execute zenith --remote --file=migrations/0001_init.sql",
+    "db:migrate:local": "wrangler d1 execute zenith --local --file=migrations/0001_init.sql",
+    "r2:create": "wrangler r2 bucket create zenith-releases",
     "assets:logo": "node scripts/optimize-logo.mjs",
     "assets:favicon": "node scripts/make-favicon.mjs"
   },

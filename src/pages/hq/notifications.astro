@@ -1,0 +1,110 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Icon from '../../components/icons/Icon.astro';
+import { requireAdmin } from '../../lib/server/guard';
+import { formatRelative } from '../../lib/format';
+
+const session = await requireAdmin(Astro);
+if (session instanceof Response) return session;
+const { user, store } = session;
+const db = store.db();
+
+const notifications = [...db.notifications].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+const unread = notifications.filter((n) => !n.read).length;
+
+const typeIcon = (type: string) => {
+  switch (type) {
+    case 'purchase':
+      return 'credit-card';
+    case 'refund':
+      return 'refresh';
+    case 'payment':
+      return 'alert-triangle';
+    case 'license':
+      return 'key';
+    case 'subscription':
+      return 'star';
+    case 'download':
+      return 'download';
+    default:
+      return 'activity';
+  }
+};
+---
+
+<AdminLayout title="Notifications" user={user}>
+  <div class="app-main-header">
+    <div>
+      <h1>Notifications</h1>
+      <p>{unread > 0 ? `${unread} unread` : 'All caught up'} — system events recorded automatically.</p>
+    </div>
+    <div class="row" style="gap: 8px;">
+      <form method="post" action="/api/admin/notifications">
+        <input type="hidden" name="action" value="mark_read" />
+        <button class="btn btn--secondary" type="submit"><Icon name="check" size={16} /> Mark all read</button>
+      </form>
+      <form method="post" action="/api/admin/notifications" data-confirm="Clear all notifications? This cannot be undone.">
+        <input type="hidden" name="action" value="clear" />
+        <button class="btn btn--danger" type="submit"><Icon name="trash" size={16} /> Clear</button>
+      </form>
+    </div>
+  </div>
+
+  {
+    notifications.length === 0 ? (
+      <div class="empty-state">
+        <div class="empty-icon"><Icon name="bell" size={36} /></div>
+        <h3>No notifications yet</h3>
+        <p>Purchases, refunds, license events, and payment errors will appear here.</p>
+      </div>
+    ) : (
+      <div class="card">
+        <ul class="notif-list">
+          {notifications.map((n) => (
+            <li class:list={['notif-row', !n.read && 'notif-row--unread']}>
+              <div class="notif-icon"><Icon name={typeIcon(n.type)} size={17} /></div>
+              <div class="notif-body">
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <span style="font-weight: 600; font-size: 0.94rem;">{n.title}</span>
+                  <span class="badge">{n.type}</span>
+                </div>
+                <p class="muted small" style="margin: 3px 0 0;">{n.message}</p>
+              </div>
+              <div class="notif-meta">
+                <time class="faint small">{formatRelative(n.createdAt)}</time>
+                {!n.read && (
+                  <form method="post" action="/api/admin/notifications">
+                    <input type="hidden" name="action" value="mark_read" />
+                    <input type="hidden" name="id" value={n.id} />
+                    <button class="btn btn--sm btn--ghost" type="submit">Mark read</button>
+                  </form>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .notif-list { list-style: none; margin: 0; padding: 0; }
+  .notif-row {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    gap: 14px;
+    align-items: start;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .notif-row:last-child { border-bottom: none; }
+  .notif-row--unread { background: var(--accent-soft); }
+  .notif-icon { color: var(--accent-strong); margin-top: 2px; }
+  .notif-body p { margin: 0; }
+  .notif-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  @media (max-width: 640px) {
+    .notif-row { grid-template-columns: 1fr; }
+    .notif-meta { align-items: flex-start; }
+  }
+</style>

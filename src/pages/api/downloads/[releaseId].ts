@@ -1,11 +1,11 @@
 import type { APIRoute } from 'astro';
 import { ApiError, fail, redirectTo, requireUser } from '../../../lib/server/api';
 import { getStoredAsset } from '../../../lib/server/storage';
-import { hasSubscribedAccess } from '../../../lib/server/entitlements';
+import { hasEntitlement } from '../../../lib/server/entitlements';
 import { logActivity } from '../../../lib/server/activity';
 import { getProductById, getRelease } from '../../../lib/server/catalog';
 import { StorageNotConfiguredError } from '../../../lib/server/store';
-import { clientKey, isRateLimited } from '../../../lib/server/rateLimit';
+import { clientKey, isRateLimited, recordHit } from '../../../lib/server/rateLimit';
 
 /** Map API error codes to styled-denial reasons for browser visitors. */
 const DENIED_REASONS: Record<string, string> = {
@@ -49,18 +49,20 @@ function deniedRedirect(ctx: Parameters<APIRoute>[0], error: unknown): Response 
  * Access requires, in order:
  *   1. an authenticated session,
  *   2. a published, not-scheduled release,
- *   3. an ACTIVE SUBSCRIPTION for the release's product (subscribers only),
+ *   3. a valid entitlement for the release's product — an active subscription
+ *      OR a paid permanent purchase (e.g. the Gold tier),
  *   4. a stored asset to deliver.
  *
  * Files are never served from public/ — they are streamed from private
- * storage after the checks above pass. Production storage should use
- * short-lived signed URLs or R2 with this endpoint issuing them.
+ * storage (R2 in production) after the checks above pass.
  */
 export const GET: APIRoute = async (ctx) => {
   try {
     if (isRateLimited(`download:${clientKey(ctx.request)}`)) {
+      recordHit(`download:${clientKey(ctx.request)}`);
       throw new ApiError(429, 'rate_limited', 'Too many download requests. Please wait a few minutes.');
     }
+    recordHit(`download:${clientKey(ctx.request)}`);
     const { user, store } = await requireUser(ctx);
     const releaseId = ctx.params.releaseId ?? '';
 
@@ -78,8 +80,12 @@ export const GET: APIRoute = async (ctx) => {
     const product = await getProductById(release.productId);
     if (release.requiresEntitlement) {
       if (!product) throw new ApiError(404, 'not_found', 'Product not found.');
-      if (!hasSubscribedAccess(store.db(), user, product.id)) {
-        throw new ApiError(403, 'no_subscription', `Downloads require an active subscription to ${product.name}.`);
+      if (!hasEntitlement(store.db(), user, product.id)) {
+        throw new ApiError(
+          403,
+          'no_subscription',
+          `Downloads require an active subscription to ${product.name} or a permanent license.`,
+        );
       }
     }
 
@@ -95,16 +101,15 @@ export const GET: APIRoute = async (ctx) => {
     await logActivity(store, user.id, 'download', `Downloaded ${product?.name ?? 'product'} ${release.version}.`, ctx.request);
 
     const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-    return new Response(asset.data, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': String(asset.sizeBytes),
-        'Content-Disposition': `attachment; filename="${safeName}"`,
-        'Cache-Control': 'private, no-store',
-        'X-Content-Type-Options': 'nosniff',
-      },
+    const headers = new Headers({
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': String(asset.sizeBytes),
+      'Content-Disposition': `attachment; filename="${safeName}"`,
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
     });
+    const body = (asset.body ?? asset.data ?? null) as BodyInit;
+    return new Response(body, { status: 200, headers });
   } catch (error) {
     if (isBrowser(ctx.request)) {
       const denied = deniedRedirect(ctx, error);

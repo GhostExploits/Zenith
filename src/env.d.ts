@@ -26,6 +26,11 @@ interface ImportMetaEnv {
   readonly SMTP_PASSWORD?: string;
   readonly EMAIL_API_URL?: string;
   readonly EMAIL_API_KEY?: string;
+
+  // Payments (Paddle — server-side only; the secret never reaches the browser)
+  readonly PAYMENT_PROVIDER?: string;
+  readonly PADDLE_API_KEY?: string;
+  readonly PADDLE_WEBHOOK_SECRET?: string;
 }
 
 interface ImportMeta {

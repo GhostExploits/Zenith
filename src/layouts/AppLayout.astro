@@ -7,6 +7,8 @@ export interface AppLink {
   label: string;
   href: string;
   icon: string;
+  /** Optional count badge (e.g. unread notifications). */
+  badge?: number;
 }
 
 interface Props {
@@ -25,23 +27,113 @@ function isCurrent(href: string): boolean {
   if (href === '/hq') return path === '/hq';
   return path.startsWith(href);
 }
+
+const currentLabel = nav.find((l) => isCurrent(l.href))?.label ?? nav[0]?.label ?? 'Menu';
 ---
 
 <BaseLayout title={title} description={description} noindex={noindex}>
   <Header user={user} />
   <div class="app-shell">
-    <aside class="app-sidebar">
-      <nav aria-label="Account">
+    <aside class="app-sidebar" aria-label="Account">
+      <nav>
         {nav.map((l) => (
           <a class="app-link" href={l.href} aria-current={isCurrent(l.href) ? 'page' : undefined}>
             <Icon name={l.icon} size={18} />
-            {l.label}
+            <span>{l.label}</span>
+            {l.badge ? <span class="nav-badge">{l.badge}</span> : null}
           </a>
         ))}
       </nav>
     </aside>
+
+    {/* Phone: compact bar + off-canvas drawer (the tab strip stays for tablets) */}
+    <div class="app-mobilebar">
+      <button
+        class="app-mobilebar-btn"
+        type="button"
+        data-drawer-open
+        aria-controls="app-drawer"
+        aria-expanded="false"
+        aria-label="Open menu"
+      >
+        <Icon name="menu" size={20} />
+      </button>
+      <span class="app-mobilebar-title">{currentLabel}</span>
+      <span class="app-mobilebar-meta">{user.role}</span>
+    </div>
+
+    <div class="app-drawer-backdrop" data-drawer-backdrop hidden></div>
+    <aside class="app-drawer" id="app-drawer" aria-label="Account" hidden>
+      <div class="app-drawer-head">
+        <span class="app-drawer-brand">Zenith <span class="faint">· {user.role}</span></span>
+        <button class="app-drawer-close" type="button" data-drawer-close aria-label="Close menu">
+          <Icon name="close" size={18} />
+        </button>
+      </div>
+      <nav class="app-drawer-nav" aria-label="Account">
+        {nav.map((l) => (
+          <a class="app-drawer-link" href={l.href} aria-current={isCurrent(l.href) ? 'page' : undefined}>
+            <Icon name={l.icon} size={20} />
+            <span>{l.label}</span>
+            {l.badge ? <span class="nav-badge">{l.badge}</span> : null}
+          </a>
+        ))}
+      </nav>
+      <div class="app-drawer-foot">
+        <a class="app-drawer-site" href="/">
+          <Icon name="globe" size={17} />
+          <span>View public site</span>
+        </a>
+      </div>
+    </aside>
+
     <main class="app-main">
       <slot />
     </main>
   </div>
 </BaseLayout>
+
+<script>
+  const openBtn = document.querySelector<HTMLButtonElement>('[data-drawer-open]');
+  const closeBtn = document.querySelector<HTMLButtonElement>('[data-drawer-close]');
+  const backdrop = document.querySelector<HTMLElement>('[data-drawer-backdrop]');
+  const drawer = document.querySelector<HTMLElement>('#app-drawer');
+  if (openBtn && closeBtn && backdrop && drawer) {
+    const setOpen = (open: boolean) => {
+      drawer.hidden = !open;
+      backdrop.hidden = !open;
+      openBtn.setAttribute('aria-expanded', String(open));
+      if (open) {
+        document.body.style.overflow = 'hidden';
+        closeBtn.focus();
+      } else {
+        document.body.style.overflow = '';
+        openBtn.focus();
+      }
+    };
+    openBtn.addEventListener('click', () => setOpen(true));
+    closeBtn.addEventListener('click', () => setOpen(false));
+    backdrop.addEventListener('click', () => setOpen(false));
+    drawer.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('a')) setOpen(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !drawer.hidden) setOpen(false);
+    });
+  }
+</script>
+
+<style>
+  .nav-badge {
+    margin-left: auto;
+    background: var(--accent);
+    color: #0a0a0d;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    min-width: 18px;
+    text-align: center;
+  }
+</style>

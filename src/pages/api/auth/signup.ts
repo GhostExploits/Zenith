@@ -15,6 +15,9 @@ export const POST: APIRoute = async (ctx) => {
     const store = await requireStore();
     const key = `signup:${clientKey(ctx.request)}`;
     if (isRateLimited(key)) throw new ApiError(429, 'rate_limited', 'Too many attempts. Please wait a few minutes.');
+    // Record every attempt (successful or not) so the account-creation limit
+    // actually engages instead of only counting "email already taken" replies.
+    recordHit(key);
 
     const { email, password, confirmPassword, displayName } = await readPayload(ctx);
     const normalized = String(email ?? '').trim().toLowerCase();
@@ -27,7 +30,6 @@ export const POST: APIRoute = async (ctx) => {
     if (pass !== confirm) throw new ApiError(400, 'password_mismatch', 'Passwords do not match.');
     if (!name) throw new ApiError(400, 'invalid_name', 'Enter a display name.');
     if (store.db().users.some((u) => u.email === normalized)) {
-      recordHit(key);
       throw new ApiError(409, 'email_taken', 'An account with that email already exists.');
     }
 

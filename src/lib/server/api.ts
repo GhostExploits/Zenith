@@ -8,6 +8,7 @@ import type { User } from '../types';
 import type { Store } from './store';
 import { getSessionUser, isSameOrigin } from './auth';
 import { getStore, StorageNotConfiguredError } from './store';
+import { PaymentError } from './payments';
 
 const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
@@ -47,6 +48,11 @@ export function ok(body: unknown = { ok: true }): Response {
 
 export function fail(error: unknown): Response {
   if (error instanceof ApiError) {
+    return json({ ok: false, error: error.code, message: error.message }, error.status);
+  }
+  // PaymentError carries the same status/code/message shape; surfacing it keeps
+  // maintenance-mode and provider errors honest (503 instead of a generic 500).
+  if (error instanceof PaymentError) {
     return json({ ok: false, error: error.code, message: error.message }, error.status);
   }
   if (error instanceof StorageNotConfiguredError) {

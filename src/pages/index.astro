@@ -13,7 +13,7 @@ import { formatDate, formatPrice, intervalLabel } from '../lib/format';
 // header into the deployed HTML.)
 
 const product = products.find((p) => p.featured) ?? products[0];
-const plans = plansForProduct(product.id).slice(0, 3);
+const plans = plansForProduct(product.id);
 const releases = releasesForProduct(product.id).slice(0, 3);
 const faqPreview = faqs.filter((f) => f.published).slice(0, 4);
 const featurePreview = product.features.slice(0, 6);
@@ -47,10 +47,11 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
           />
         </picture>
       </div>
-      <h1 data-parallax data-depth="3">Built for players who<br />demand control.</h1>
+      <h1 data-parallax data-depth="3">Precision tools.<br />Competitive advantage.</h1>
       <p class="hero-sub" data-parallax data-depth="2">
-        A premium Minecraft client focused on performance, precise customization, and a
-        clean, modern interface. Configure everything, keep it smooth, and make the game feel yours.
+        Zenith is a premium Minecraft client engineered for performance, deep
+        customization, and total control. Every module is configurable, every
+        frame counts, and your settings follow you on every server you play.
       </p>
       <div class="hero-cta" data-parallax data-depth="1.5">
         <a class="btn btn--primary btn--lg" href="/products">Get Zenith</a>
@@ -106,26 +107,31 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
     <div class="container">
       <div class="section-head section-head--center">
         <span class="eyebrow eyebrow--center">Pricing</span>
-        <h2>Simple plans. No strings.</h2>
-        <p>Monthly, yearly, or a one-time lifetime purchase — your entitlement follows your account.</p>
+        <h2>Pick your tier. Stay ahead.</h2>
+        <p>Four tiers — from flexible monthly access to a permanent license. Your purchase is applied to your account automatically and instantly.</p>
       </div>
-      <div class="grid grid--3">
+      <div class="grid grid--4">
         {plans.map((plan) => (
           <div class={`card plan-card ${plan.highlighted ? 'plan-card--highlight' : ''}`}>
             <div class="plan-name">
               {plan.name}
-              {plan.highlighted && <span class="badge badge--accent">Recommended</span>}
+              {plan.highlighted && <span class="badge badge--accent">Best value</span>}
             </div>
             <div class="plan-price">
               {formatPrice(plan.priceCents, plan.currency)}<small>{intervalLabel(plan.interval)}</small>
             </div>
             <p class="plan-desc">{plan.description}</p>
+            <div class="plan-license">
+              {plan.licenseMode === 'permanent'
+                ? <><Icon name="key" size={14} /> Permanent license</>
+                : <><Icon name="refresh" size={14} /> Valid while subscribed</>}
+            </div>
             <a class="btn btn--secondary" href={`/checkout/${plan.id}`}>Choose {plan.name}</a>
           </div>
         ))}
       </div>
       <p class="center muted small mt-2">
-        Payment processing is not connected yet — checkout is informational until a provider is integrated.
+        Secure checkout · License key delivered instantly to your account · Cancel anytime
       </p>
     </div>
   </section>
@@ -310,6 +316,17 @@ const betaAnnouncement = true; // static banner (editable via admin → Site Con
   }
   .faq-mini[open] summary::after { content: '–'; color: var(--accent); }
   .faq-mini p { color: var(--text-dim); font-size: 0.92rem; margin: 10px 0 0; max-width: 620px; }
+
+  .plan-license {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    font-weight: 500;
+    margin-bottom: 16px;
+  }
+  .plan-license svg { color: var(--accent); flex-shrink: 0; }
 
   .community-cta {
     display: flex;

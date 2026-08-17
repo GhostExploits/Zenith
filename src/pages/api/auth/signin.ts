@@ -12,6 +12,9 @@ export const POST: APIRoute = async (ctx) => {
     if (isRateLimited(key)) {
       throw new ApiError(429, 'rate_limited', 'Too many attempts. Please wait a few minutes and try again.');
     }
+    // Count every attempt so brute-force protection engages after N tries
+    // regardless of whether the credentials are correct.
+    recordHit(key);
 
     const { email, password, next } = await readPayload(ctx);
     const normalized = String(email ?? '').trim().toLowerCase();
@@ -20,7 +23,6 @@ export const POST: APIRoute = async (ctx) => {
     const user = store.db().users.find((u) => u.email === normalized);
     const passwordOk = user ? await verifyPassword(String(password), user) : false;
     if (!user || !passwordOk) {
-      recordHit(key);
       throw new ApiError(401, 'invalid_credentials', 'Incorrect email or password.');
     }
     if (user.suspended) throw new ApiError(403, 'suspended', 'This account has been suspended.');
